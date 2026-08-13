@@ -196,13 +196,14 @@ input[type="number"], input[type="text"], input[type="search"], select, textarea
   font: inherit;
   border-radius: 2px;
 }
-input[type="number"] { width: 64px; }
+.toolbar input[type="number"],
+.dialog input[type="number"] { width: 64px; }
 input[type="range"] { accent-color: var(--pdn-accent); }
 
 .workspace {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr) 220px;
+  grid-template-columns: 168px minmax(0, 1fr) 200px;
   grid-template-rows: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
@@ -218,7 +219,8 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   background: var(--pdn-bg);
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   z-index: 2;
 }
 .dock.left,
@@ -261,34 +263,40 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   cursor: pointer;
   padding: 0 3px;
 }
-.pdn-win .body { padding: 6px; overflow: auto; flex: 1; }
+.pdn-win .body { padding: 4px; overflow: auto; overflow-x: hidden; flex: 1; min-width: 0; }
 
 .tools-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  gap: 2px;
 }
 .tool-btn {
-  height: 40px;
+  height: 28px;
   width: 100%;
   background: var(--pdn-bg-3);
   border: 1px solid var(--pdn-border);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 .tool-btn svg,
 .icon svg {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   overflow: visible;
 }
 .tb-btn svg,
 .icon-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
-.colors-body { display: flex; flex-direction: column; gap: 8px; }
+.colors-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  overflow-x: hidden;
+}
 .swatches-row { display: flex; gap: 8px; align-items: flex-start; }
 .primary-secondary {
   position: relative;
@@ -308,14 +316,36 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 .swatch.secondary { left: 18px; top: 16px; z-index: 1; }
 .swatch.active { outline: 2px solid var(--pdn-accent); z-index: 3; }
 .swap-reset { display: flex; flex-direction: column; gap: 2px; }
-.wheel-wrap { position: relative; width: 168px; height: 168px; margin: 0 auto; }
-.wheel-wrap canvas { display: block; width: 168px; height: 168px; }
-.sliders { display: grid; grid-template-columns: 18px 1fr 48px; gap: 3px 6px; align-items: center; }
-.hex-row { display: flex; align-items: center; gap: 6px; }
+.wheel-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 140px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  min-width: 0;
+}
+.wheel-wrap canvas { display: block; width: 100%; height: 100%; }
+.sliders {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 38px;
+  gap: 2px 4px;
+  align-items: center;
+  min-width: 0;
+}
+.sliders input[type="range"] { width: 100%; min-width: 0; }
+.sliders input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 2px;
+  box-sizing: border-box;
+}
+.hex-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.hex-row input[type="text"] { flex: 1; min-width: 0; width: auto; }
 .palette-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 2px;
+  min-width: 0;
 }
 .palette-cell {
   aspect-ratio: 1;
@@ -492,16 +522,48 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 
 .hidden { display: none !important; }
 
+.dock-tabs {
+  display: none;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding-bottom: 2px;
+}
+.dock.tabbed {
+  overflow: hidden;
+}
+.dock.tabbed > .dock-tabs {
+  display: flex;
+}
+.dock-tab {
+  flex: 1;
+  border: 1px solid var(--pdn-border);
+  background: var(--pdn-bg-2);
+  color: var(--pdn-text);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 4px;
+  cursor: pointer;
+  border-radius: 2px 2px 0 0;
+}
+.dock-tab.active {
+  background: var(--pdn-accent-soft);
+  border-color: var(--pdn-accent);
+}
+.dock-pane { min-width: 0; min-height: 0; }
+.dock.tabbed > .dock-pane:not(.dock-pane-active) { display: none; }
+.dock.tabbed > .dock-pane-active {
+  flex: 1 1 auto;
+  overflow: auto;
+  overflow-x: hidden;
+}
+
 @media (max-width: 900px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: minmax(160px, 28vh) minmax(0, 1fr) minmax(140px, 24vh);
   }
   .dock {
     width: 100%;
-    max-height: 180px;
-    flex-direction: row;
-    overflow-x: auto;
+    max-height: none;
   }
-  .dock .pdn-win { min-width: 200px; max-height: 180px; }
 }

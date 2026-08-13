@@ -4,6 +4,7 @@ import { mountToolbar } from "./toolbar";
 import { mountCanvas } from "./canvas-view";
 import { mountColorsWindow, mountHistoryWindow, mountLayersWindow, mountStatus, mountToolsWindow } from "./windows";
 import { mountDialogHost } from "./dialogs";
+import { mountAdaptiveDock } from "./dock";
 
 export function mountShell(root: HTMLElement, app: AppState): void {
   root.className = "pdn-shell";
@@ -37,4 +38,13 @@ export function mountShell(root: HTMLElement, app: AppState): void {
   mountHistoryWindow(historyHost, app);
   mountStatus(status, app);
   mountDialogHost(dialogs, app);
+
+  mountAdaptiveDock(left, [
+    { id: "tools", label: "Tools", host: toolsHost },
+    { id: "colors", label: "Colors", host: colorsHost },
+  ]);
+  mountAdaptiveDock(right, [
+    { id: "layers", label: "Layers", host: layersHost },
+    { id: "history", label: "History", host: historyHost },
+  ]);
 }
