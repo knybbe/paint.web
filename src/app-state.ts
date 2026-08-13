@@ -7,6 +7,23 @@ import { Compositor } from "./core/renderer";
 import { DEFAULT_SETTINGS, PRIMARY_DEFAULT, SECONDARY_DEFAULT, type AppSettings } from "./core/settings";
 import { idbGet, idbSet, pushRecent, type RecentFile } from "./core/idb";
 import {
+  applyDocument,
+  loadWorkspace,
+  rebuildHistory,
+  restoreDocument,
+  restoreFloating,
+  restoreSelection,
+  restoreViewport,
+  saveWorkspace,
+  serializeDocument,
+  serializeFloating,
+  serializeHistory,
+  serializeSelection,
+  serializeViewport,
+  type SerializedDocument,
+  type SerializedWorkspace,
+} from "./core/persist";
+import {
   decodeImageFile,
   downloadBlob,
   encodeDocument,
@@ -41,6 +58,11 @@ export interface DocumentSession {
 
 let sessionSeq = 1;
 
+export function noteSessionId(id: string): void {
+  const n = Number(id.replace(/^doc-/, ""));
+  if (Number.isFinite(n) && n >= sessionSeq) sessionSeq = n + 1;
+}
+
 export class AppState extends EventTarget {
   sessions: DocumentSession[] = [];
   activeSessionId = "";
@@ -57,6 +79,8 @@ export class AppState extends EventTarget {
   lastEffect: { id: string; params: Record<string, number | boolean | string> } | null = null;
   recent: RecentFile[] = [];
   dialog: DialogState | null = null;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private restoring = false;
 
   get session(): DocumentSession {
     return this.sessions.find((s) => s.id === this.activeSessionId) ?? this.sessions[0];
@@ -84,6 +108,21 @@ export class AppState extends EventTarget {
 
   notify(type: string): void {
     this.dispatchEvent(new Event(type));
+    if (
+      !this.restoring &&
+      (type === "document" ||
+        type === "history" ||
+        type === "layers" ||
+        type === "selection" ||
+        type === "viewport" ||
+        type === "tool" ||
+        type === "colors" ||
+        type === "windows" ||
+        type === "sessions" ||
+        type === "theme")
+    ) {
+      this.schedulePersist();
+    }
   }
 
   async init(): Promise<void> {
@@ -94,6 +133,12 @@ export class AppState extends EventTarget {
         this.options.antialias = this.settings.antialias;
       }
       this.recent = (await idbGet<RecentFile[]>("recent", "list")) ?? [];
+      const workspace = await loadWorkspace();
+      if (workspace?.sessions?.length) {
+        this.restoreWorkspace(workspace);
+        this.applyTheme();
+        return;
+      }
     } catch {
       /* IndexedDB unavailable (private mode, older browsers) */
     }
@@ -151,7 +196,118 @@ export class AppState extends EventTarget {
       zoomBeforeFit: null,
       floating: null,
     };
+    session.history.baseline = serializeDocument(doc);
+    session.history.afterPush = () => {
+      const top = session.history.undoEntries.at(-1);
+      if (top) top.after = serializeDocument(session.document);
+    };
     return session;
+  }
+
+  schedulePersist(): void {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      void this.flushPersist();
+    }, 350);
+  }
+
+  async flushPersist(): Promise<void> {
+    if (this.restoring || !this.sessions.length) return;
+    try {
+      await saveWorkspace(this.captureWorkspace());
+    } catch {
+      /* quota or private mode */
+    }
+  }
+
+  captureWorkspace(): SerializedWorkspace {
+    const clip = getMemoryClipboard();
+    return {
+      version: 1,
+      activeSessionId: this.activeSessionId,
+      sessions: this.sessions.map((s) => ({
+        id: s.id,
+        document: serializeDocument(s.document),
+        selection: serializeSelection(s.selection),
+        viewport: serializeViewport(s.viewport),
+        floating: serializeFloating(s.floating),
+        history: (() => {
+          const hist = serializeHistory(s.history);
+          if (!hist.baseline.layers.length) hist.baseline = serializeDocument(s.document);
+          return hist;
+        })(),
+      })),
+      primary: cloneColor(this.primary),
+      secondary: cloneColor(this.secondary),
+      activeColor: this.activeColor,
+      currentTool: this.currentTool,
+      options: { ...this.options },
+      windows: { ...this.windows },
+      settings: { ...this.settings, palette: this.settings.palette.map((c) => ({ ...c })) },
+      lastEffect: this.lastEffect,
+      clipboard: serializeFloating(
+        clip ? { buffer: clip.buffer, mask: clip.mask, x: 0, y: 0 } : null,
+      ),
+    };
+  }
+
+  restoreWorkspace(data: SerializedWorkspace): void {
+    this.restoring = true;
+    this.sessions = [];
+    this.settings = { ...DEFAULT_SETTINGS, ...data.settings, palette: (data.settings.palette ?? DEFAULT_SETTINGS.palette).map((c) => ({ ...c })) };
+    this.options = { ...DEFAULT_TOOL_OPTIONS, ...data.options };
+    this.windows = { ...this.windows, ...data.windows };
+    this.primary = cloneColor(data.primary);
+    this.secondary = cloneColor(data.secondary);
+    this.activeColor = data.activeColor;
+    this.currentTool = data.currentTool;
+    this.lastEffect = data.lastEffect;
+    if (data.clipboard) {
+      const f = restoreFloating(data.clipboard);
+      if (f) setMemoryClipboard({ buffer: f.buffer, mask: f.mask });
+    }
+    for (const s of data.sessions) {
+      noteSessionId(s.id);
+      const doc = restoreDocument(s.document);
+      const session = this.wrap(doc);
+      session.id = s.id;
+      session.selection = restoreSelection(s.selection);
+      restoreViewport(session.viewport, s.viewport);
+      session.floating = restoreFloating(s.floating);
+      const apply = (snap: SerializedDocument) => {
+        applyDocument(session.document, snap);
+        session.selection.width = session.document.width;
+        session.selection.height = session.document.height;
+        session.compositor.invalidate();
+      };
+      session.history = rebuildHistory(
+        this.settings.historyLimit,
+        s.history.baseline.layers.length ? s.history.baseline : serializeDocument(doc),
+        s.history.undo,
+        s.history.redo,
+        apply,
+      );
+      session.history.afterPush = () => {
+        const top = session.history.undoEntries.at(-1);
+        if (top) top.after = serializeDocument(session.document);
+      };
+      this.sessions.push(session);
+    }
+    this.activeSessionId = this.sessions.some((s) => s.id === data.activeSessionId)
+      ? data.activeSessionId
+      : this.sessions[0].id;
+    this.restoring = false;
+    this.updateTitle();
+    this.notify("sessions");
+    this.notify("document");
+    this.notify("history");
+    this.notify("selection");
+    this.notify("viewport");
+    this.notify("tool");
+    this.notify("colors");
+    this.notify("windows");
+    this.notify("layers");
   }
 
   activateSession(id: string): void {

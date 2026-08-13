@@ -1,5 +1,5 @@
 const DB_NAME = "paint-web";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -12,6 +12,7 @@ export function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("recent")) db.createObjectStore("recent");
       if (!db.objectStoreNames.contains("autosave")) db.createObjectStore("autosave");
+      if (!db.objectStoreNames.contains("workspace")) db.createObjectStore("workspace");
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

@@ -3,16 +3,28 @@ export interface HistoryEntry {
   icon: string;
   undo: () => void;
   redo: () => void;
+  after?: unknown;
 }
 
 export class HistoryStack {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
+  /** Snapshot of the document before any history entries. */
+  baseline: unknown = null;
+  afterPush: (() => void) | null = null;
   /** Index into combined timeline: 0 = original, length = latest. */
   limit: number;
 
   constructor(limit = 80) {
     this.limit = limit;
+  }
+
+  get undoEntries(): HistoryEntry[] {
+    return this.undoStack;
+  }
+
+  get redoEntries(): HistoryEntry[] {
+    return this.redoStack;
   }
 
   get canUndo(): boolean {
@@ -59,6 +71,7 @@ export class HistoryStack {
     this.undoStack.push(entry);
     this.redoStack.length = 0;
     while (this.undoStack.length > this.limit) this.undoStack.shift();
+    this.afterPush?.();
   }
 
   undo(): HistoryEntry | null {

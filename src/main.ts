@@ -19,6 +19,14 @@ async function boot(): Promise<void> {
 
 void boot();
 
+const persistNow = (): void => {
+  void app.flushPersist();
+};
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") persistNow();
+});
+window.addEventListener("pagehide", persistNow);
+
 window.addEventListener("beforeunload", (e) => {
   if (app.sessions.some((s) => s.document.dirty)) {
     e.preventDefault();

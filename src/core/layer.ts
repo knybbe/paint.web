@@ -8,6 +8,11 @@ export function resetLayerSeq(n = 1): void {
   layerSeq = n;
 }
 
+export function noteLayerId(id: string): void {
+  const n = Number(id.replace(/^layer-/, ""));
+  if (Number.isFinite(n) && n >= layerSeq) layerSeq = n + 1;
+}
+
 export class Layer {
   id: string;
   name: string;
