@@ -27,12 +27,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", persistNow);
 
-window.addEventListener("beforeunload", (e) => {
-  if (app.sessions.some((s) => s.document.dirty)) {
-    e.preventDefault();
-    e.returnValue = "";
-  }
-});
+window.addEventListener("beforeunload", persistNow);
 
 window.addEventListener("dragover", (e) => {
   e.preventDefault();

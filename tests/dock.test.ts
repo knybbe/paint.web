@@ -96,4 +96,23 @@ describe("adaptive dock", () => {
     expect(a.classList.contains("dock-pane-active")).toBe(true);
     expect(b.classList.contains("dock-pane-active")).toBe(true);
   });
+
+  it("tabs before content exactly fills the dock", async () => {
+    const dock = document.createElement("aside");
+    dock.className = "dock left";
+    const a = fakeWindow("A", 200);
+    const b = fakeWindow("B", 200);
+    dock.append(a, b);
+    document.body.append(dock);
+    // title 20 + body 200 + 2, twice, plus gap 4 + pad 8 = 456. Available 470
+    // would scroll with the old `needed > available + 4` check.
+    Object.defineProperty(dock, "clientHeight", { configurable: true, get: () => 470 });
+
+    mountAdaptiveDock(dock, [
+      { id: "tools", label: "Tools", host: a },
+      { id: "colors", label: "Colors", host: b },
+    ]);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    expect(dock.classList.contains("tabbed")).toBe(true);
+  });
 });

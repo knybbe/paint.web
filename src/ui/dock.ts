@@ -65,7 +65,14 @@ export function mountAdaptiveDock(
     const pad = 8;
     const needed =
       panes.reduce((sum, pane) => sum + paneContentHeight(pane), 0) + gap * Math.max(0, panes.length - 1) + pad;
-    apply(available > 32 && needed > available + 4);
+    // Tab before the dock overflows (avoids a one-frame scrollbar). Leave tabs
+    // only when there is extra room so the mode does not flicker.
+    const tabEarly = 36;
+    const unTabSlack = 56;
+    const next = tabbed
+      ? !(available > needed + unTabSlack)
+      : available > 32 && needed + tabEarly > available;
+    apply(next);
     measuring = false;
   };
 
