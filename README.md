@@ -75,6 +75,8 @@ Pixel data lives in `PixelBuffer` (typed arrays) so the document model is testab
 | Keyboard shortcuts | **Full** for the documented PDN command set used here |
 | Dark / light theme | **Full** |
 | IndexedDB settings + recent list | **Full** |
+| Restore workspace after refresh/close (including undo/redo) | **Full** |
+| Floating paste (apply on Enter or tool change) | **Full** |
 | Native `.pdn` files | **Not supported** (proprietary .NET binary). Use PNG or `.pdnweb` |
 | Plugins / Indirect UI / custom brushes | **Not implemented** |
 | Print | **Basic** (opens a printable flattened image) |
