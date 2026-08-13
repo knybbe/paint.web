@@ -219,8 +219,7 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   background: var(--pdn-bg);
   min-width: 0;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   z-index: 2;
 }
 .dock.left,
