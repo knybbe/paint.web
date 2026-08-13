@@ -1,0 +1,11 @@
+node_modules
+dist
+dev-dist
+.vite
+coverage
+*.log
+.DS_Store
+test-results
+playwright-report
+e2e/artifacts
+blob-report

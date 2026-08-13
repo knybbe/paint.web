@@ -1,0 +1,27 @@
+{
+  "name": "paint.web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fully offline Paint.NET clone as a Progressive Web App",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test e2e/ui.spec.ts",
+    "test:visual": "playwright test e2e/visual.spec.ts --update-snapshots",
+    "test:visual:check": "playwright test e2e/visual.spec.ts",
+    "icons": "node scripts/generate-icons.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^2.1.8"
+  }
+}
