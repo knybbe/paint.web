@@ -17,6 +17,7 @@ import {
   type SaveFormat,
 } from "./core/file-io";
 import { extractSelection, getMemoryClipboard, readClipboardImage, setMemoryClipboard, writeClipboardImage } from "./core/clipboard";
+import { selectionFromFloating, stampFloating, type FloatingSelection } from "./core/floating";
 import { restoreBytes, snapshotBytes } from "./core/pixel-buffer";
 import { PixelBuffer } from "./core/pixel-buffer";
 import { Colors } from "./core/color";
@@ -35,6 +36,7 @@ export interface DocumentSession {
   compositor: Compositor;
   fileHandle: { name: string; write: (blob: Blob) => Promise<void> } | null;
   zoomBeforeFit: number | null;
+  floating: FloatingSelection | null;
 }
 
 let sessionSeq = 1;
@@ -147,6 +149,7 @@ export class AppState extends EventTarget {
       compositor: new Compositor(),
       fileHandle: null,
       zoomBeforeFit: null,
+      floating: null,
     };
     return session;
   }
@@ -154,6 +157,7 @@ export class AppState extends EventTarget {
   activateSession(id: string): void {
     if (this.sessions.some((s) => s.id === id)) {
       this.commitActiveTool();
+      this.commitFloating();
       this.activeSessionId = id;
       this.updateTitle();
       this.notify("sessions");
@@ -214,6 +218,8 @@ export class AppState extends EventTarget {
         this.viewport.setZoom(z, around);
         this.notify("viewport");
       },
+      floating: this.session.floating,
+      placeFloating: (x, y) => this.placeFloating(x, y),
       commitPixels: (name, icon, layerId, before) => {
         const layer = this.document.layerById(layerId);
         if (!layer) return;
@@ -241,6 +247,7 @@ export class AppState extends EventTarget {
   setTool(id: ToolId): void {
     if (this.currentTool === id) return;
     this.commitActiveTool();
+    if (id !== "movePixels") this.commitFloating();
     getTool(this.currentTool).reset?.();
     this.currentTool = id;
     this.notify("tool");
@@ -288,6 +295,7 @@ export class AppState extends EventTarget {
 
   undo(): void {
     this.cancelActiveTool();
+    this.cancelFloating();
     if (this.history.undo()) {
       this.compositor.invalidate();
       this.document.dirty = true;
@@ -299,6 +307,7 @@ export class AppState extends EventTarget {
 
   redo(): void {
     this.cancelActiveTool();
+    this.cancelFloating();
     if (this.history.redo()) {
       this.compositor.invalidate();
       this.document.dirty = true;
@@ -369,8 +378,41 @@ export class AppState extends EventTarget {
 
   deselect(): void {
     this.commitActiveTool();
+    this.commitFloating();
     this.selection.clear();
     this.notify("selection");
+  }
+
+  placeFloating(x: number, y: number): void {
+    const f = this.session.floating;
+    if (!f) return;
+    f.x = x;
+    f.y = y;
+    selectionFromFloating(this.selection, f);
+    this.notify("selection");
+    this.notify("overlay");
+    this.notify("document");
+  }
+
+  commitFloating(): void {
+    const f = this.session.floating;
+    if (!f) return;
+    this.session.floating = null;
+    this.mutateLayerPixels("Paste", "paste", () => {
+      stampFloating(this.document.activeLayer.buffer, f);
+    });
+    selectionFromFloating(this.selection, f);
+    this.notify("selection");
+  }
+
+  cancelFloating(): void {
+    if (!this.session.floating) return;
+    this.session.floating = null;
+    this.selection.clear();
+    this.statusMessage = "Paste cancelled";
+    this.notify("selection");
+    this.notify("document");
+    this.notify("status");
   }
 
   invertSelection(): void {
@@ -379,6 +421,10 @@ export class AppState extends EventTarget {
   }
 
   eraseSelection(): void {
+    if (this.session.floating) {
+      this.cancelFloating();
+      return;
+    }
     this.mutateLayerPixels("Erase Selection", "erase", () => {
       const layer = this.document.activeLayer;
       if (this.selection.empty) layer.buffer.fill(Colors.transparent);
@@ -425,9 +471,9 @@ export class AppState extends EventTarget {
   }
 
   async paste(mode: "normal" | "newLayer" | "newImage" = "normal"): Promise<void> {
-    const buf = await readClipboardImage();
     const mem = getMemoryClipboard();
-    const pixels = buf ?? mem?.buffer;
+    const buf = mem?.buffer.clone() ?? (await readClipboardImage());
+    const pixels = buf;
     if (!pixels) {
       this.statusMessage = "Clipboard is empty";
       this.notify("status");
@@ -446,6 +492,7 @@ export class AppState extends EventTarget {
       return;
     }
     if (mode === "newLayer") {
+      this.commitFloating();
       const layer = Layer.fromBuffer(PixelBuffer.create(this.document.width, this.document.height), "Pasted");
       pixels.copyTo(layer.buffer, 0, 0);
       const idx = this.document.activeIndex + 1;
@@ -464,28 +511,18 @@ export class AppState extends EventTarget {
       this.notify("layers");
       return;
     }
-    const layer = this.document.activeLayer;
-    const snap = snapshotBytes(layer.buffer);
-    pixels.copyTo(layer.buffer, 0, 0);
-    const after = snapshotBytes(layer.buffer);
-    const id = layer.id;
-    this.pushNamed(
-      "Paste",
-      "paste",
-      () => {
-        const l = this.document.layerById(id);
-        if (l) restoreBytes(l.buffer, snap);
-      },
-      () => {
-        const l = this.document.layerById(id);
-        if (l) restoreBytes(l.buffer, after);
-      },
-    );
-    this.selection.clear();
-    this.selection.applyRect({ x: 0, y: 0, w: pixels.width, h: pixels.height }, "replace");
-    this.setTool("movePixels");
+    this.commitFloating();
+    this.commitActiveTool();
+    const mask =
+      mem && mem.buffer.width === pixels.width && mem.buffer.height === pixels.height ? mem.mask : null;
+    this.session.floating = { buffer: pixels.clone(), mask: mask ? new Uint8Array(mask) : null, x: 0, y: 0 };
+    this.currentTool = "movePixels";
+    selectionFromFloating(this.selection, this.session.floating);
+    this.statusMessage = "Pasted — drag to move, Enter to apply, Esc to cancel";
+    this.notify("tool");
     this.notify("selection");
-    this.notify("layers");
+    this.notify("document");
+    this.notify("status");
   }
 
   addLayer(): void {

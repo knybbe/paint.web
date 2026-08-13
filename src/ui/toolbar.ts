@@ -85,6 +85,17 @@ export function mountToolbar(root: HTMLElement, app: AppState): void {
       fin.addEventListener("click", () => app.commitActiveTool());
       opts.append(fin);
     }
+    if (app.session.floating) {
+      const fin = document.createElement("button");
+      fin.className = "btn primary";
+      fin.textContent = "Apply paste";
+      fin.addEventListener("click", () => app.commitFloating());
+      const cancel = document.createElement("button");
+      cancel.className = "btn";
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => app.cancelFloating());
+      opts.append(fin, cancel);
+    }
     if (id === "text") {
       const fonts = ["Segoe UI, system-ui, sans-serif", "Georgia, serif", "Courier New, monospace", "Impact, sans-serif", "Times New Roman, serif", "Arial, sans-serif"];
       opts.append(selectField("Font", app.options.fontFamily, fonts, (v) => { app.options.fontFamily = v; }));

@@ -140,13 +140,22 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
 
   const draw = () => {
     if (!app.session || !ctx) return;
-    renderWorkspace(ctx, app.document, app.compositor, app.viewport, app.selection, ants, (c, vp) => {
-      const tool = getTool(app.currentTool);
-      tool.drawOverlay?.(c, vp);
-      if ((app.currentTool === "movePixels" || app.currentTool === "moveSelection") && app.selection.bounds) {
-        drawSelectionHandles(c, app.selection.bounds, vp);
-      }
-    });
+    renderWorkspace(
+      ctx,
+      app.document,
+      app.compositor,
+      app.viewport,
+      app.selection,
+      ants,
+      (c, vp) => {
+        const tool = getTool(app.currentTool);
+        tool.drawOverlay?.(c, vp);
+        if ((app.currentTool === "movePixels" || app.currentTool === "moveSelection") && app.selection.bounds) {
+          drawSelectionHandles(c, app.selection.bounds, vp);
+        }
+      },
+      app.session.floating,
+    );
     drawRulers();
   };
 

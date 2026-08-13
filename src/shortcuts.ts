@@ -140,6 +140,7 @@ export function bindShortcuts(app: AppState): void {
 
     if (e.key === "Escape") {
       if (app.dialog) return go(() => app.closeDialog());
+      if (app.session.floating) return go(() => app.cancelFloating());
       app.cancelActiveTool();
       app.deselect();
     }

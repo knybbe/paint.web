@@ -38,7 +38,7 @@ export function extractSelection(doc: PdDocument, selection: Selection, merged: 
 }
 
 export async function writeClipboardImage(buffer: PixelBuffer): Promise<void> {
-  setMemoryClipboard({ buffer: buffer.clone(), mask: null });
+  if (!getMemoryClipboard()) setMemoryClipboard({ buffer: buffer.clone(), mask: null });
   if (!navigator.clipboard || typeof ClipboardItem === "undefined") return;
   try {
     const canvas = document.createElement("canvas");

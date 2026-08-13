@@ -200,6 +200,19 @@ export const movePixels: Tool = {
   group: "move",
   cursor: "move",
   pointerDown(e, ctx) {
+    if (ctx.floating) {
+      const b = ctx.selection.bounds;
+      if (!b) return;
+      const handle = e.button === 2 ? "rotate" : hitHandle({ x: e.imageX, y: e.imageY }, b, ctx.viewport.zoom) ?? "move";
+      (this as unknown as { _drag: MoveDrag })._drag = {
+        handle,
+        start: { x: e.imageX, y: e.imageY },
+        origBounds: { x: ctx.floating.x, y: ctx.floating.y, w: ctx.floating.buffer.width, h: ctx.floating.buffer.height },
+        copy: true,
+        angle0: 0,
+      };
+      return;
+    }
     const layer = ctx.document.activeLayer;
     if (layer.locked) return;
     if (ctx.selection.empty) ctx.selection.selectAll();
@@ -230,6 +243,13 @@ export const movePixels: Tool = {
   },
   pointerMove(e, ctx) {
     const drag = (this as unknown as { _drag?: MoveDrag })._drag;
+    if (ctx.floating && drag) {
+      ctx.placeFloating(
+        Math.round(drag.origBounds.x + (e.imageX - drag.start.x)),
+        Math.round(drag.origBounds.y + (e.imageY - drag.start.y)),
+      );
+      return;
+    }
     if (!drag?.pixels || !drag.layerId || !drag.hole) return;
     const layer = ctx.document.layerById(drag.layerId);
     if (!layer) return;
@@ -265,6 +285,11 @@ export const movePixels: Tool = {
   },
   pointerUp(_e, ctx) {
     const drag = (this as unknown as { _drag?: MoveDrag })._drag;
+    if (ctx.floating && drag) {
+      (this as unknown as { _drag?: MoveDrag })._drag = undefined;
+      ctx.notify("selection");
+      return;
+    }
     if (!drag?.hole || !drag.layerId) return;
     const layer = ctx.document.layerById(drag.layerId);
     if (layer) {
@@ -301,6 +326,10 @@ export const movePixels: Tool = {
     };
     const d = map[e.key];
     if (!d) return false;
+    if (ctx.floating) {
+      ctx.placeFloating(ctx.floating.x + d[0], ctx.floating.y + d[1]);
+      return true;
+    }
     const fake = {
       imageX: d[0],
       imageY: d[1],

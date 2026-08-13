@@ -6,6 +6,7 @@ import type { Viewport } from "../core/viewport";
 import type { Compositor } from "../core/renderer";
 import type { Rect } from "../core/geometry";
 import { restoreBytes, snapshotBytes } from "../core/pixel-buffer";
+import type { FloatingSelection } from "../core/floating";
 
 export type ToolId =
   | "rectangleSelect"
@@ -104,6 +105,8 @@ export interface ToolContext {
   setSecondary: (c: Color) => void;
   setZoom: (z: number, around?: { x: number; y: number }) => void;
   commitPixels: (name: string, icon: string, layerId: string, before: Uint8ClampedArray, rect?: Rect) => void;
+  floating: FloatingSelection | null;
+  placeFloating: (x: number, y: number) => void;
 }
 
 export interface Tool {

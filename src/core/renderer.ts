@@ -5,6 +5,7 @@ import type { Viewport } from "./viewport";
 import { PixelBuffer } from "./pixel-buffer";
 import { Colors } from "./color";
 import { compositeLayer } from "./blend";
+import { maskedDisplayBuffer, type FloatingSelection } from "./floating";
 
 export class Compositor {
   private cache: PixelBuffer | null = null;
@@ -64,6 +65,7 @@ export function renderWorkspace(
   selection: Selection,
   antsPhase: number,
   overlay?: OverlayDrawer,
+  floating?: FloatingSelection | null,
 ): void {
   const { width: vw, height: vh } = ctx.canvas;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -98,6 +100,24 @@ export function renderWorkspace(
   ctx.imageSmoothingEnabled = vp.zoom < 1;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(tmp.canvas, 0, 0, doc.width, doc.height, dx, dy, dw, dh);
+
+  if (floating) {
+    const fb = maskedDisplayBuffer(floating);
+    const ft = getScratch(fb.width, fb.height);
+    ft.ctx.clearRect(0, 0, fb.width, fb.height);
+    ft.ctx.putImageData(fb.asImageData(), 0, 0);
+    ctx.drawImage(
+      ft.canvas,
+      0,
+      0,
+      fb.width,
+      fb.height,
+      floating.x * vp.zoom + vp.panX,
+      floating.y * vp.zoom + vp.panY,
+      fb.width * vp.zoom,
+      fb.height * vp.zoom,
+    );
+  }
 
   if (vp.showPixelGrid && vp.zoom >= vp.pixelGridMinZoom) {
     drawPixelGrid(ctx, vp, doc.width, doc.height);
