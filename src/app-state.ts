@@ -688,9 +688,14 @@ export class AppState extends EventTarget {
         const session = this.wrap(doc);
         this.sessions.push(session);
         this.activeSessionId = session.id;
-        await pushRecent(file.name);
-        this.recent = [{ id: `${Date.now()}`, name: file.name, openedAt: Date.now() }, ...this.recent].slice(0, 12);
-        await idbSet("recent", "list", this.recent);
+        try {
+          this.recent = await pushRecent(file.name);
+        } catch {
+          this.recent = [{ id: `${Date.now()}-${file.name}`, name: file.name, openedAt: Date.now() }, ...this.recent].slice(
+            0,
+            12,
+          );
+        }
       } catch (err) {
         alert((err as Error).message);
       }

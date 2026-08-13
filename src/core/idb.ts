@@ -1,13 +1,16 @@
 const DB_NAME = "paint-web";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
       if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings");
-      if (!db.objectStoreNames.contains("recent")) db.createObjectStore("recent", { keyPath: "id" });
+      if (event.oldVersion < 2 && db.objectStoreNames.contains("recent")) {
+        db.deleteObjectStore("recent");
+      }
+      if (!db.objectStoreNames.contains("recent")) db.createObjectStore("recent");
       if (!db.objectStoreNames.contains("autosave")) db.createObjectStore("autosave");
     };
     req.onsuccess = () => resolve(req.result);
@@ -25,11 +28,15 @@ export async function idbGet<T>(store: string, key: IDBValidKey): Promise<T | un
   });
 }
 
+export function putRequest(store: IDBObjectStore, value: unknown, key: IDBValidKey): IDBRequest {
+  return store.keyPath ? store.put(value) : store.put(value, key);
+}
+
 export async function idbSet(store: string, key: IDBValidKey, value: unknown): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(store, "readwrite");
-    tx.objectStore(store).put(value, key);
+    putRequest(tx.objectStore(store), value, key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -61,10 +68,10 @@ export interface RecentFile {
   openedAt: number;
 }
 
-export async function pushRecent(name: string): Promise<void> {
+export async function pushRecent(name: string): Promise<RecentFile[]> {
   const rec: RecentFile = { id: `${Date.now()}-${name}`, name, openedAt: Date.now() };
-  await idbSet("recent", rec.id, rec);
-  const all = await idbGetAll<RecentFile>("recent");
-  all.sort((a, b) => b.openedAt - a.openedAt);
-  for (const extra of all.slice(12)) await idbDelete("recent", extra.id);
+  const prev = ((await idbGet<RecentFile[]>("recent", "list")) ?? []).filter((r) => r.name !== name);
+  const next = [rec, ...prev].slice(0, 12);
+  await idbSet("recent", "list", next);
+  return next;
 }
