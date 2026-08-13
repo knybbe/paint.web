@@ -11,8 +11,10 @@ function fakeWindow(label: string, bodyHeight: number): HTMLElement {
   Object.defineProperty(title, "offsetHeight", { configurable: true, get: () => 20 });
   const body = document.createElement("div");
   body.className = "body";
-  body.textContent = label;
-  Object.defineProperty(body, "scrollHeight", { configurable: true, get: () => bodyHeight });
+  const inner = document.createElement("div");
+  inner.textContent = label;
+  Object.defineProperty(inner, "offsetHeight", { configurable: true, get: () => bodyHeight });
+  body.append(inner);
   win.append(title, body);
   host.append(win);
   return host;
@@ -62,6 +64,32 @@ describe("adaptive dock", () => {
       { id: "layers", label: "Layers", host: a },
       { id: "history", label: "History", host: b },
     ]);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    expect(dock.classList.contains("tabbed")).toBe(false);
+    expect(a.classList.contains("dock-pane-active")).toBe(true);
+    expect(b.classList.contains("dock-pane-active")).toBe(true);
+  });
+
+  it("leaves tabbed mode when the dock grows enough for both panes", async () => {
+    const dock = document.createElement("aside");
+    dock.className = "dock left";
+    const a = fakeWindow("A", 300);
+    const b = fakeWindow("B", 300);
+    dock.append(a, b);
+    document.body.append(dock);
+    let height = 120;
+    Object.defineProperty(dock, "clientHeight", { configurable: true, get: () => height });
+
+    mountAdaptiveDock(dock, [
+      { id: "tools", label: "Tools", host: a },
+      { id: "colors", label: "Colors", host: b },
+    ]);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    expect(dock.classList.contains("tabbed")).toBe(true);
+
+    height = 900;
+    window.dispatchEvent(new Event("resize"));
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     expect(dock.classList.contains("tabbed")).toBe(false);
