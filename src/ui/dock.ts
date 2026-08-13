@@ -1,7 +1,9 @@
 /**
- * Stack dock panes. If their *content* is taller than the dock, switch to tabs.
- * Measuring dock.scrollHeight fails because pane bodies use min-height:0 and
- * scroll internally, so the dock itself never overflows.
+ * Stack dock panes. If their content is taller than the dock, switch to tabs.
+ * When the dock grows enough for both panes, leave tabbed mode.
+ *
+ * Do not use the pane body's scrollHeight while tabbed: the active pane is
+ * stretched to fill the dock, so scrollHeight stays large and tabs never go away.
  */
 export function mountAdaptiveDock(
   dock: HTMLElement,
@@ -29,6 +31,7 @@ export function mountAdaptiveDock(
     btn.addEventListener("click", () => {
       active = pane.id;
       apply(true);
+      schedule();
     });
     bar.append(btn);
   }
@@ -49,15 +52,7 @@ export function mountAdaptiveDock(
   const paneContentHeight = (pane: { id: string; host: HTMLElement }): number => {
     const hidden = tabbed && pane.id !== active;
     if (hidden) return cached.get(pane.id) ?? 0;
-    const win = pane.host.querySelector(".pdn-win") as HTMLElement | null;
-    let h: number;
-    if (win) {
-      const title = win.querySelector(".title") as HTMLElement | null;
-      const body = win.querySelector(".body") as HTMLElement | null;
-      h = (title?.offsetHeight ?? 0) + (body?.scrollHeight ?? win.scrollHeight) + 2;
-    } else {
-      h = pane.host.scrollHeight;
-    }
+    const h = intrinsicPaneHeight(pane.host);
     if (h > 0) cached.set(pane.id, h);
     return h || cached.get(pane.id) || 0;
   };
@@ -70,8 +65,7 @@ export function mountAdaptiveDock(
     const pad = 8;
     const needed =
       panes.reduce((sum, pane) => sum + paneContentHeight(pane), 0) + gap * Math.max(0, panes.length - 1) + pad;
-    const next = available > 32 && needed > available + 4;
-    apply(next);
+    apply(available > 32 && needed > available + 4);
     measuring = false;
   };
 
@@ -89,4 +83,32 @@ export function mountAdaptiveDock(
   }
   window.addEventListener("resize", schedule);
   schedule();
+}
+
+function intrinsicPaneHeight(host: HTMLElement): number {
+  const win = host.querySelector(".pdn-win") as HTMLElement | null;
+  if (!win) return childrenExtent(host);
+  const title = win.querySelector(".title") as HTMLElement | null;
+  const body = win.querySelector(".body") as HTMLElement | null;
+  const titleH = title?.offsetHeight ?? 0;
+  const bodyH = body ? childrenExtent(body) : 0;
+  return titleH + bodyH + 2;
+}
+
+/** Height of an element's children, ignoring flex stretch of the element itself. */
+function childrenExtent(el: HTMLElement): number {
+  if (el.offsetParent === null && getComputedStyle(el).display === "none") return 0;
+  let h = 0;
+  for (const child of el.children) {
+    const node = child as HTMLElement;
+    const style = getComputedStyle(node);
+    if (style.display === "none") continue;
+    h +=
+      node.offsetHeight +
+      (parseFloat(style.marginTop) || 0) +
+      (parseFloat(style.marginBottom) || 0);
+  }
+  const style = getComputedStyle(el);
+  h += (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+  return h;
 }
