@@ -1,6 +1,23 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mountAdaptiveDock } from "../src/ui/dock";
 
+function fakeWindow(label: string, bodyHeight: number): HTMLElement {
+  const host = document.createElement("div");
+  const win = document.createElement("section");
+  win.className = "pdn-win";
+  const title = document.createElement("div");
+  title.className = "title";
+  title.textContent = label;
+  Object.defineProperty(title, "offsetHeight", { configurable: true, get: () => 20 });
+  const body = document.createElement("div");
+  body.className = "body";
+  body.textContent = label;
+  Object.defineProperty(body, "scrollHeight", { configurable: true, get: () => bodyHeight });
+  win.append(title, body);
+  host.append(win);
+  return host;
+}
+
 describe("adaptive dock", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -9,14 +26,11 @@ describe("adaptive dock", () => {
   it("creates tabs and shows one pane when the dock overflows", async () => {
     const dock = document.createElement("aside");
     dock.className = "dock left";
-    const a = document.createElement("div");
-    const b = document.createElement("div");
-    a.textContent = "A";
-    b.textContent = "B";
+    const a = fakeWindow("A", 300);
+    const b = fakeWindow("B", 300);
     dock.append(a, b);
     document.body.append(dock);
     Object.defineProperty(dock, "clientHeight", { configurable: true, get: () => 120 });
-    Object.defineProperty(dock, "scrollHeight", { configurable: true, get: () => 400 });
 
     mountAdaptiveDock(dock, [
       { id: "tools", label: "Tools", host: a },
@@ -38,12 +52,11 @@ describe("adaptive dock", () => {
   it("keeps both panes stacked when they fit", async () => {
     const dock = document.createElement("aside");
     dock.className = "dock right";
-    const a = document.createElement("div");
-    const b = document.createElement("div");
+    const a = fakeWindow("A", 80);
+    const b = fakeWindow("B", 80);
     dock.append(a, b);
     document.body.append(dock);
     Object.defineProperty(dock, "clientHeight", { configurable: true, get: () => 800 });
-    Object.defineProperty(dock, "scrollHeight", { configurable: true, get: () => 400 });
 
     mountAdaptiveDock(dock, [
       { id: "layers", label: "Layers", host: a },

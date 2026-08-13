@@ -232,9 +232,15 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   flex-direction: column;
   min-height: 0;
 }
-.dock.left > :last-child,
-.dock.right > :first-child {
-  flex: 1 1 auto;
+.dock:not(.tabbed) > .dock-pane {
+  flex: 0 0 auto;
+}
+.dock:not(.tabbed) > .dock-pane .pdn-win {
+  flex: 0 0 auto;
+}
+.dock:not(.tabbed) > .dock-pane .pdn-win .body {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .pdn-win {
