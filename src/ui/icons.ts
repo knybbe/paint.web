@@ -203,6 +203,19 @@ export const UI_ICONS: Record<string, string> = {
   ),
   close: icon(`<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`),
   check: icon(`<path d="M4.4 12.2l5 5 10.2-10.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`),
+  fit: icon(
+    `<rect x="3.5" y="5.5" width="17" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+     <rect x="7" y="8" width="10" height="8" fill="#93c5fd" fill-opacity=".45" stroke="currentColor" stroke-width="1.4"/>
+     <path d="M7 8l-2.2-2.2M17 8l2.2-2.2M7 16l-2.2 2.2M17 16l2.2 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`,
+  ),
+  zoomIn: icon(
+    `<circle cx="10" cy="10" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+     <path d="M10 7v6M7 10h6M14.8 14.8L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+  ),
+  zoomOut: icon(
+    `<circle cx="10" cy="10" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+     <path d="M7 10h6M14.8 14.8L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+  ),
 };
 
 export function svgEl(svg: string, className?: string): HTMLElement {

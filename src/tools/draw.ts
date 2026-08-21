@@ -1,4 +1,4 @@
-import { cloneStamp, drawAliasedLine, recolorStamp, stampAlong, type StampOptions } from "../core/draw";
+import { cloneStamp, drawAliasedLine, forEachStamp, recolorStamp, stampAlong, type StampOptions } from "../core/draw";
 import type { Point } from "../core/geometry";
 import { type Color } from "../core/color";
 import { type Tool, type ToolContext, type ToolPointer, paintColor, pushSnapshot, snapshotLayer } from "./base";
@@ -128,8 +128,21 @@ export const cloneStampTool: Tool = (() => {
     },
     pointerMove(e, ctx) {
       if (!snap || !last || !offset) return;
-      last = { x: e.imageX, y: e.imageY };
-      stamp(ctx, e);
+      const next = { x: e.imageX, y: e.imageY };
+      const off = offset;
+      forEachStamp(last, next, ctx.options.brushWidth, (pt) => {
+        cloneStamp(ctx.document.activeLayer.buffer, ctx.options.sampleMode === "image" ? ctx.document.composite() : ctx.document.activeLayer.buffer, pt.x, pt.y, pt.x + off.x, pt.y + off.y, {
+          size: ctx.options.brushWidth,
+          hardness: ctx.options.hardness,
+          antialias: ctx.options.antialias,
+          color: ctx.primary,
+          pressure: ctx.options.pressure ? e.pressure : 1,
+          selection: ctx.selection.empty ? undefined : ctx.selection,
+        });
+      });
+      last = next;
+      ctx.compositor.invalidate();
+      ctx.notify("document");
     },
     pointerUp(_e, ctx) {
       if (snap) pushSnapshot(ctx, "Clone Stamp", "cloneStamp", snap);
@@ -195,8 +208,22 @@ export const recolorTool: Tool = (() => {
     },
     pointerMove(e, ctx) {
       if (!last) return;
-      last = { x: e.imageX, y: e.imageY };
-      paint(ctx, e);
+      const next = { x: e.imageX, y: e.imageY };
+      const sample = button === 2 ? ctx.primary : ctx.secondary;
+      const replace = button === 2 ? ctx.secondary : ctx.primary;
+      forEachStamp(last, next, ctx.options.brushWidth, (pt) => {
+        recolorStamp(ctx.document.activeLayer.buffer, pt.x, pt.y, sample, replace, ctx.options.tolerance, {
+          size: ctx.options.brushWidth,
+          hardness: ctx.options.hardness,
+          antialias: ctx.options.antialias,
+          color: replace,
+          pressure: ctx.options.pressure ? e.pressure : 1,
+          selection: ctx.selection.empty ? undefined : ctx.selection,
+        });
+      });
+      last = next;
+      ctx.compositor.invalidate();
+      ctx.notify("document");
     },
     pointerUp(_e, ctx) {
       if (snap) pushSnapshot(ctx, "Recolor", "recolor", snap);

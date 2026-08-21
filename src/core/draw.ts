@@ -48,11 +48,11 @@ export function stampCircle(buf: PixelBuffer, cx: number, cy: number, opt: Stamp
   }
 }
 
-export function stampAlong(buf: PixelBuffer, a: Point, b: Point, opt: StampOptions, spacing = 0.25): Point {
-  const gap = Math.max(0.5, opt.size * spacing);
+export function forEachStamp(a: Point, b: Point, size: number, fn: (p: Point) => void, spacing = 0.25): Point {
+  const gap = Math.max(0.5, size * spacing);
   const d = dist(a, b);
   if (d === 0) {
-    stampCircle(buf, b.x, b.y, opt);
+    fn(b);
     return b;
   }
   const steps = Math.max(1, Math.ceil(d / gap));
@@ -60,9 +60,13 @@ export function stampAlong(buf: PixelBuffer, a: Point, b: Point, opt: StampOptio
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     last = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-    stampCircle(buf, last.x, last.y, opt);
+    fn(last);
   }
   return last;
+}
+
+export function stampAlong(buf: PixelBuffer, a: Point, b: Point, opt: StampOptions, spacing = 0.25): Point {
+  return forEachStamp(a, b, opt.size, (p) => stampCircle(buf, p.x, p.y, opt), spacing);
 }
 
 export function setAliasedPixel(buf: PixelBuffer, x: number, y: number, c: Color, sel?: Selection): void {

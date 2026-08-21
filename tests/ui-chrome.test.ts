@@ -113,4 +113,24 @@ describe("UI chrome and menus", () => {
     expect(app.windows.tools).toBe(false);
     expect(document.querySelector('[data-testid="window-tools"]')).toBeNull();
   });
+
+  it("exposes Fit to View in the toolbar, status bar, and View menu", () => {
+    expect(document.querySelector('[data-testid="tb-fit"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="zoom-fit"]')).toBeTruthy();
+    click(document.querySelector('[data-testid="menu-view"]'));
+    expect(document.querySelector('[data-label="Fit to View"]')).toBeTruthy();
+    app.viewport.viewWidth = 400;
+    app.viewport.viewHeight = 300;
+    app.viewport.zoom = 0.1;
+    click(document.querySelector('[data-label="Fit to View"]'));
+    expect(app.viewport.zoom).toBeGreaterThan(0.2);
+  });
+
+  it("wires Open Recent items to an action", () => {
+    app.recent = [{ id: "r1", name: "photo.png", openedAt: Date.now() }];
+    click(document.querySelector('[data-testid="menu-file"]'));
+    const item = document.querySelector('[data-label="photo.png"]') as HTMLButtonElement | null;
+    expect(item).toBeTruthy();
+    expect(item?.disabled).toBe(false);
+  });
 });

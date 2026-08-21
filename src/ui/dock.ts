@@ -93,6 +93,7 @@ export function mountAdaptiveDock(
 }
 
 function intrinsicPaneHeight(host: HTMLElement): number {
+  if (typeof getComputedStyle !== "undefined" && getComputedStyle(host).position === "fixed") return 0;
   const win = host.querySelector(".pdn-win") as HTMLElement | null;
   if (!win) return childrenExtent(host);
   const title = win.querySelector(".title") as HTMLElement | null;

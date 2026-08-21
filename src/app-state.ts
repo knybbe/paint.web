@@ -5,7 +5,7 @@ import { Selection } from "./core/selection";
 import { Viewport } from "./core/viewport";
 import { Compositor } from "./core/renderer";
 import { DEFAULT_SETTINGS, PRIMARY_DEFAULT, SECONDARY_DEFAULT, type AppSettings } from "./core/settings";
-import { idbGet, idbSet, pushRecent, type RecentFile } from "./core/idb";
+import { idbGet, idbSet, pushRecentFile, type RecentFile } from "./core/idb";
 import {
   applyDocument,
   loadWorkspace,
@@ -54,6 +54,8 @@ export interface DocumentSession {
   fileHandle: { name: string; write: (blob: Blob) => Promise<void> } | null;
   zoomBeforeFit: number | null;
   floating: FloatingSelection | null;
+  /** When true, canvas mount will not overwrite restored pan/zoom. */
+  preserveViewport: boolean;
 }
 
 let sessionSeq = 1;
@@ -195,6 +197,7 @@ export class AppState extends EventTarget {
       fileHandle: null,
       zoomBeforeFit: null,
       floating: null,
+      preserveViewport: false,
     };
     session.history.baseline = serializeDocument(doc);
     session.history.afterPush = () => {
@@ -274,6 +277,7 @@ export class AppState extends EventTarget {
       session.id = s.id;
       session.selection = restoreSelection(s.selection);
       restoreViewport(session.viewport, s.viewport);
+      session.preserveViewport = true;
       session.floating = restoreFloating(s.floating);
       const apply = (snap: SerializedDocument) => {
         applyDocument(session.document, snap);
@@ -324,13 +328,13 @@ export class AppState extends EventTarget {
     }
   }
 
-  closeSession(id?: string): void {
+  async closeSession(id?: string): Promise<void> {
     const sid = id ?? this.activeSessionId;
     const idx = this.sessions.findIndex((s) => s.id === sid);
     if (idx < 0) return;
     if (this.sessions[idx].document.dirty) {
       const ok = confirm(`Save changes to ${this.sessions[idx].document.name}?`);
-      if (ok) void this.save();
+      if (ok) await this.save();
     }
     this.sessions.splice(idx, 1);
     if (!this.sessions.length) this.newDocument();
@@ -340,6 +344,12 @@ export class AppState extends EventTarget {
     }
     this.notify("sessions");
     this.notify("document");
+  }
+
+  fitToView(): void {
+    this.viewport.fitToWindow(this.document.width, this.document.height, 8);
+    this.session.zoomBeforeFit = null;
+    this.notify("viewport");
   }
 
   nextSession(dir: 1 | -1): void {
@@ -882,12 +892,12 @@ export class AppState extends EventTarget {
         this.sessions.push(session);
         this.activeSessionId = session.id;
         try {
-          this.recent = await pushRecent(file.name);
+          this.recent = await pushRecentFile(file);
         } catch {
-          this.recent = [{ id: `${Date.now()}-${file.name}`, name: file.name, openedAt: Date.now() }, ...this.recent].slice(
-            0,
-            12,
-          );
+          this.recent = [
+            { id: `${Date.now()}-${file.name}`, name: file.name, openedAt: Date.now(), type: file.type },
+            ...this.recent.filter((r) => r.name !== file.name),
+          ].slice(0, 8);
         }
       } catch (err) {
         alert((err as Error).message);
@@ -898,7 +908,26 @@ export class AppState extends EventTarget {
     this.notify("document");
     this.notify("layers");
     this.viewport.fitToWindow(this.document.width, this.document.height);
+    this.session.preserveViewport = true;
     this.notify("viewport");
+  }
+
+  async openRecent(id: string): Promise<void> {
+    const rec = this.recent.find((r) => r.id === id);
+    if (!rec) return;
+    try {
+      const buf = await idbGet<ArrayBuffer>("recent-files", id);
+      if (!buf) {
+        this.statusMessage = "Recent file is no longer available — use File > Open";
+        this.notify("status");
+        return;
+      }
+      const file = new File([buf], rec.name, { type: rec.type || "" });
+      await this.openFiles([file]);
+    } catch (err) {
+      this.statusMessage = (err as Error).message || "Could not open recent file";
+      this.notify("status");
+    }
   }
 
   async save(saveAs = false): Promise<void> {
@@ -948,10 +977,15 @@ export class AppState extends EventTarget {
     canvas.getContext("2d")!.putImageData(this.document.composite().asImageData(), 0, 0);
     const w = window.open("");
     if (!w) return;
-    w.document.write(`<img src="${canvas.toDataURL("image/png")}" style="max-width:100%">`);
-    w.document.close();
-    w.focus();
-    w.print();
+    const img = w.document.createElement("img");
+    img.style.maxWidth = "100%";
+    img.onload = () => {
+      w.focus();
+      w.print();
+    };
+    w.document.body.style.margin = "0";
+    w.document.body.append(img);
+    img.src = canvas.toDataURL("image/png");
   }
 
   openDialog(dialog: DialogState): void {

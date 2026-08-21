@@ -40,6 +40,11 @@ export class Viewport {
     }
   }
 
+  /** Continuous zoom for trackpad pinch / ctrl+wheel. `around` is in CSS pixels. */
+  zoomByFactor(factor: number, around?: Point): void {
+    this.setZoom(this.zoom * factor, around);
+  }
+
   zoomIn(around?: Point): void {
     const next = ZOOM_STEPS.find((s) => s > this.zoom + 1e-6) ?? MAX_ZOOM;
     this.setZoom(next, around);
@@ -58,10 +63,10 @@ export class Viewport {
     this.center(docW, docH);
   }
 
-  fitToWindow(docW: number, docH: number, padding = 24): void {
+  fitToWindow(docW: number, docH: number, padding = 8): void {
     const aw = Math.max(1, this.viewWidth - padding * 2);
     const ah = Math.max(1, this.viewHeight - padding * 2);
-    this.zoom = clamp(Math.min(aw / docW, ah / docH), MIN_ZOOM, MAX_ZOOM);
+    this.zoom = clamp(Math.min(aw / Math.max(1, docW), ah / Math.max(1, docH)), MIN_ZOOM, MAX_ZOOM);
     this.center(docW, docH);
   }
 
@@ -93,4 +98,15 @@ export class Viewport {
     const b = Math.min(docH, Math.ceil(br.y));
     return { x, y, w: Math.max(0, r - x), h: Math.max(0, b - y) };
   }
+}
+
+/**
+ * Convert a wheel event into a multiplicative zoom factor.
+ * Mac trackpad pinch is delivered as many small ctrl+wheel pixel deltas; a
+ * discrete zoom-step per event makes that explode. Clamp so a single huge
+ * notch cannot jump more than ~15%.
+ */
+export function zoomFactorFromWheel(deltaY: number, deltaMode = 0): number {
+  const px = deltaMode === 1 ? deltaY * 16 : deltaMode === 2 ? deltaY * 800 : deltaY;
+  return clamp(Math.exp(-px * 0.0025), 0.85, 1.15);
 }

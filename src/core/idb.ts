@@ -1,5 +1,5 @@
 const DB_NAME = "paint-web";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -11,6 +11,7 @@ export function openDb(): Promise<IDBDatabase> {
         db.deleteObjectStore("recent");
       }
       if (!db.objectStoreNames.contains("recent")) db.createObjectStore("recent");
+      if (!db.objectStoreNames.contains("recent-files")) db.createObjectStore("recent-files");
       if (!db.objectStoreNames.contains("autosave")) db.createObjectStore("autosave");
       if (!db.objectStoreNames.contains("workspace")) db.createObjectStore("workspace");
     };
@@ -67,12 +68,46 @@ export interface RecentFile {
   id: string;
   name: string;
   openedAt: number;
+  type?: string;
+  size?: number;
 }
+
+const RECENT_BLOB_MAX = 30 * 1024 * 1024;
+const RECENT_LIMIT = 8;
 
 export async function pushRecent(name: string): Promise<RecentFile[]> {
   const rec: RecentFile = { id: `${Date.now()}-${name}`, name, openedAt: Date.now() };
   const prev = ((await idbGet<RecentFile[]>("recent", "list")) ?? []).filter((r) => r.name !== name);
-  const next = [rec, ...prev].slice(0, 12);
+  const next = [rec, ...prev].slice(0, RECENT_LIMIT);
   await idbSet("recent", "list", next);
+  return next;
+}
+
+export async function pushRecentFile(file: File): Promise<RecentFile[]> {
+  const rec: RecentFile = {
+    id: `${Date.now()}-${file.name}`,
+    name: file.name,
+    openedAt: Date.now(),
+    type: file.type,
+    size: file.size,
+  };
+  const prev = ((await idbGet<RecentFile[]>("recent", "list")) ?? []).filter((r) => r.name !== file.name);
+  const dropped = [...prev].slice(RECENT_LIMIT - 1);
+  const next = [rec, ...prev].slice(0, RECENT_LIMIT);
+  await idbSet("recent", "list", next);
+  for (const old of dropped) {
+    try {
+      await idbDelete("recent-files", old.id);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (file.size <= RECENT_BLOB_MAX) {
+    try {
+      await idbSet("recent-files", rec.id, await file.arrayBuffer());
+    } catch {
+      /* quota */
+    }
+  }
   return next;
 }

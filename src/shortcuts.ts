@@ -68,10 +68,7 @@ export function bindShortcuts(app: AppState): void {
       });
     }
     if (ctrl && key === "b") {
-      return go(() => {
-        app.viewport.fitToWindow(app.document.width, app.document.height);
-        app.notify("viewport");
-      });
+      return go(() => app.fitToView());
     }
 
     if (ctrl && shift && key === "x") return go(() => app.cropToSelection());

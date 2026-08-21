@@ -12,7 +12,8 @@ An unofficial, fully offline-capable Progressive Web App inspired by **Paint.NET
 - Installable PWA with a service worker that caches the entire app
 - Multi-document tabs, multi-layer documents, unlimited undo/redo (capped)
 - Tools, menus, and shortcuts aligned with Paint.NET 4/5
-- Dark and light themes, tablet-usable layout
+- Dark and light themes, a phone chrome with a bottom bar, and HiDPI-correct canvas drawing
+- Fit to View, continuous trackpad pinch zoom, and File > Open Recent that reopens stored images
 - Open PNG / JPEG / BMP / GIF / WebP / `.pdnweb`; save those plus a layered `.pdnweb` format
 
 ## How to run locally
@@ -62,7 +63,7 @@ Pixel data lives in `PixelBuffer` (typed arrays) so the document model is testab
 | Layer masks | **Basic** — per-layer grayscale mask in the model and compositor; no dedicated mask UI yet |
 | History panel + undo/redo | **Full** (pixel snapshots; memory-limited) |
 | Image / canvas size, rotate, flip, crop | **Full** |
-| Zoom, pan, rulers, pixel grid, guides | **Full** (guides exist in the viewport; create from the View path / future ruler drag) |
+| Zoom, pan, Fit to View, rulers, pixel grid, guides | **Full** (pinch / Ctrl+wheel is continuous; Fit to View is on the toolbar, status bar, and View menu) |
 | Selection tools (rect, ellipse, lasso, wand) + combine modes | **Full** |
 | Move selection / move pixels (nubs, rotate, copy) | **Full** (approximate of PDN’s transform nubs) |
 | Pencil, brush, eraser, bucket, gradient, picker | **Full** |
@@ -74,7 +75,8 @@ Pixel data lives in `PixelBuffer` (typed arrays) so the document model is testab
 | Clipboard | **Full** via `ClipboardItem` + in-memory fallback |
 | Keyboard shortcuts | **Full** for the documented PDN command set used here |
 | Dark / light theme | **Full** |
-| IndexedDB settings + recent list | **Full** |
+| Phone / narrow layout | **Full** (bottom bar, tool strip, sheets for layers/colors/history) |
+| IndexedDB settings + recent list | **Full** (Open Recent reopens stored file blobs) |
 | Restore workspace after refresh/close (including undo/redo) | **Full** |
 | Floating paste (apply on Enter or tool change) | **Full** |
 | Native `.pdn` files | **Not supported** (proprietary .NET binary). Use PNG or `.pdnweb` |

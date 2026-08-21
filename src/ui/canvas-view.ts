@@ -1,5 +1,6 @@
 import type { AppState } from "../app-state";
 import { renderWorkspace } from "../core/renderer";
+import { zoomFactorFromWheel } from "../core/viewport";
 import { getTool } from "../tools/registry";
 import { drawSelectionHandles } from "../tools/move";
 import type { ToolPointer } from "../tools/base";
@@ -30,6 +31,11 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   let ants = 0;
   let pointerId: number | null = null;
   let spaceHeld = false;
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinch:
+    | { dist: number; midX: number; midY: number }
+    | null = null;
+  let lastRulers = app.viewport.showRulers;
 
   const paintTabs = () => {
     tabs.innerHTML = "";
@@ -54,7 +60,8 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
 
   const resize = () => {
     const dpr = window.devicePixelRatio || 1;
-    if (app.viewport.showRulers) {
+    const compact = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 860px)").matches;
+    if (app.viewport.showRulers && !compact) {
       rulerH.style.display = "";
       rulerV.style.display = "";
       corner.style.display = "";
@@ -64,8 +71,8 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       rulerH.style.display = "none";
       rulerV.style.display = "none";
       corner.style.display = "none";
-      frame.style.gridTemplateColumns = "0 minmax(0, 1fr)";
-      frame.style.gridTemplateRows = "0 minmax(0, 1fr)";
+      frame.style.gridTemplateColumns = "minmax(0, 1fr)";
+      frame.style.gridTemplateRows = "minmax(0, 1fr)";
     }
 
     const r = host.getBoundingClientRect();
@@ -184,12 +191,51 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
     };
   };
 
+  const endPointer = (e: PointerEvent) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (host.hasPointerCapture(e.pointerId)) {
+      try {
+        host.releasePointerCapture(e.pointerId);
+      } catch {
+        /* already released */
+      }
+    }
+  };
+
+  const updatePinch = () => {
+    if (pointers.size < 2) return;
+    const pts = [...pointers.values()];
+    const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    const midX = (pts[0].x + pts[1].x) / 2;
+    const midY = (pts[0].y + pts[1].y) / 2;
+    if (!pinch || pinch.dist < 1) {
+      pinch = { dist: Math.max(1, dist), midX, midY };
+      return;
+    }
+    const scale = dist / pinch.dist;
+    app.viewport.zoomByFactor(scale, { x: midX, y: midY });
+    app.viewport.pan(midX - pinch.midX, midY - pinch.midY);
+    pinch = { dist: Math.max(1, dist), midX, midY };
+    app.notify("viewport");
+  };
+
   host.addEventListener("pointerdown", (e) => {
     host.focus();
     host.setPointerCapture(e.pointerId);
-    pointerId = e.pointerId;
     const p = toPointer(e);
+    pointers.set(e.pointerId, { x: p.screenX, y: p.screenY });
     app.cursorImage = { x: p.imageX, y: p.imageY };
+    if (pointers.size >= 2) {
+      if (pointerId !== null) {
+        getTool(app.currentTool).cancel?.(app.toolContext());
+        pointerId = null;
+      }
+      app.spacePan = false;
+      updatePinch();
+      return;
+    }
+    pointerId = e.pointerId;
     if (e.button === 1 || spaceHeld) {
       app.spacePan = true;
       getTool("pan").pointerDown(p, app.toolContext());
@@ -201,27 +247,55 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
 
   host.addEventListener("pointermove", (e) => {
     const p = toPointer(e);
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: p.screenX, y: p.screenY });
     app.cursorImage = { x: p.imageX, y: p.imageY };
     app.notify("status");
+    if (pointers.size >= 2) {
+      updatePinch();
+      return;
+    }
     if (app.spacePan) {
       getTool("pan").pointerMove(p, app.toolContext());
       return;
     }
-    if (pointerId === e.pointerId || e.buttons) {
+    if (pointerId === e.pointerId) {
       getTool(app.currentTool).pointerMove(p, app.toolContext());
     }
   });
 
-  host.addEventListener("pointerup", (e) => {
+  const finishPointer = (e: PointerEvent) => {
     const p = toPointer(e);
+    const wasPinch = pointers.size >= 2;
+    endPointer(e);
+    if (wasPinch) {
+      pointerId = null;
+      app.spacePan = false;
+      return;
+    }
     if (app.spacePan) {
       getTool("pan").pointerUp(p, app.toolContext());
       app.spacePan = false;
       pointerId = null;
       return;
     }
-    getTool(app.currentTool).pointerUp(p, app.toolContext());
-    pointerId = null;
+    if (pointerId === e.pointerId) {
+      getTool(app.currentTool).pointerUp(p, app.toolContext());
+      pointerId = null;
+    }
+  };
+
+  host.addEventListener("pointerup", finishPointer);
+  host.addEventListener("pointercancel", finishPointer);
+  host.addEventListener("lostpointercapture", (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+  });
+
+  host.addEventListener("dblclick", (e) => {
+    if (app.currentTool === "zoom" || app.currentTool === "pan") {
+      e.preventDefault();
+      app.fitToView();
+    }
   });
 
   host.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -231,12 +305,13 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
     const r = host.getBoundingClientRect();
     const around = { x: e.clientX - r.left, y: e.clientY - r.top };
     if (e.ctrlKey || e.metaKey) {
-      if (e.deltaY < 0) app.viewport.zoomIn(around);
-      else app.viewport.zoomOut(around);
+      app.viewport.zoomByFactor(zoomFactorFromWheel(e.deltaY, e.deltaMode), around);
     } else if (e.shiftKey) {
-      app.viewport.pan(-e.deltaY, 0);
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      app.viewport.pan(-dy, 0);
     } else {
-      app.viewport.pan(-e.deltaX, -e.deltaY);
+      const sx = e.deltaMode === 1 ? 16 : 1;
+      app.viewport.pan(-e.deltaX * sx, -e.deltaY * sx);
     }
     app.notify("viewport");
   }, { passive: false });
@@ -260,10 +335,21 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   ro.observe(root);
   ro.observe(host);
   window.addEventListener("resize", resize);
+  if (typeof window.matchMedia === "function") {
+    const mq = window.matchMedia("(max-width: 860px)");
+    mq.addEventListener?.("change", resize);
+  }
 
   app.addEventListener("sessions", paintTabs);
-  app.addEventListener("document", () => { draw(); paintTabs(); });
-  app.addEventListener("viewport", () => { resize(); });
+  app.addEventListener("document", paintTabs);
+  app.addEventListener("viewport", () => {
+    if (lastRulers !== app.viewport.showRulers) {
+      lastRulers = app.viewport.showRulers;
+      resize();
+      return;
+    }
+    draw();
+  });
   app.addEventListener("selection", draw);
   app.addEventListener("overlay", draw);
   app.addEventListener("tool", draw);
@@ -272,7 +358,10 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   paintTabs();
   requestAnimationFrame(() => {
     resize();
-    app.viewport.fitToWindow(app.document.width, app.document.height);
+    if (!app.session.preserveViewport) {
+      app.viewport.fitToWindow(app.document.width, app.document.height);
+      app.session.preserveViewport = true;
+    }
     app.notify("viewport");
     loop();
   });

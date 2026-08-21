@@ -24,6 +24,16 @@ export function mountToolbar(root: HTMLElement, app: AppState): void {
       btn(UI_ICONS.paste, "Paste", () => void app.paste("normal")),
       sep(),
       btn(UI_ICONS.crop, "Crop to Selection", () => app.cropToSelection(), app.selection.empty),
+      sep(),
+      btn(UI_ICONS.zoomOut, "Zoom Out (Ctrl+-)", () => {
+        app.viewport.zoomOut({ x: app.viewport.viewWidth / 2, y: app.viewport.viewHeight / 2 });
+        app.notify("viewport");
+      }),
+      btn(UI_ICONS.fit, "Fit to View (Ctrl+B)", () => app.fitToView(), false, "tb-fit"),
+      btn(UI_ICONS.zoomIn, "Zoom In (Ctrl++)", () => {
+        app.viewport.zoomIn({ x: app.viewport.viewWidth / 2, y: app.viewport.viewHeight / 2 });
+        app.notify("viewport");
+      }),
     );
     root.append(actions);
 
@@ -110,14 +120,14 @@ export function mountToolbar(root: HTMLElement, app: AppState): void {
   app.addEventListener("tool", paint);
   app.addEventListener("history", paint);
   app.addEventListener("selection", paint);
-  app.addEventListener("document", paint);
 }
 
-function btn(svg: string, title: string, onClick: () => void, disabled = false): HTMLButtonElement {
+function btn(svg: string, title: string, onClick: () => void, disabled = false, testid?: string): HTMLButtonElement {
   const b = document.createElement("button");
   b.className = "tb-btn";
   b.title = title;
   b.disabled = disabled;
+  if (testid) b.dataset.testid = testid;
   b.append(svgEl(svg));
   b.addEventListener("click", onClick);
   return b;

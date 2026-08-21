@@ -3,6 +3,7 @@ import { getEffect } from "../effects/registry";
 import { paramMap } from "../effects/base";
 import type { SaveFormat } from "../core/file-io";
 import { BLEND_MODES, type BlendMode } from "../core/blend";
+import { version as APP_VERSION } from "../../package.json";
 
 export function mountDialogHost(host: HTMLElement, app: AppState): void {
   const paint = () => {
@@ -103,8 +104,7 @@ function renderNew(box: HTMLElement, app: AppState): void {
       dpi: Number(dpi.value) || 96,
       background: bg.value as "White" | "Black" | "Transparent",
     });
-    app.viewport.fitToWindow(app.document.width, app.document.height);
-    app.notify("viewport");
+    app.fitToView();
     app.closeDialog();
   }, app);
 }
@@ -322,7 +322,7 @@ function renderAbout(box: HTMLElement, app: AppState): void {
     Paint.NET (Rick Brewster / dotPDN LLC). It is not affiliated with or endorsed by the Paint.NET authors.</p>
     <p>Runs entirely in your browser. After the first visit the app is cached and works offline.
     Install it from the browser address bar for a standalone window.</p>
-    <p>Version 1.0.0 · MIT License</p>
+    <p>Version ${APP_VERSION} · MIT License</p>
   `;
   const row = document.createElement("div");
   row.className = "actions";
@@ -383,7 +383,7 @@ function renderShortcuts(box: HTMLElement, app: AppState): void {
       <li><b>X</b> swap colors · <b>C</b> switch active color · <b>[ ]</b> brush size</li>
       <li><b>Ctrl+Z/Y</b> undo/redo · <b>Ctrl+C/X/V</b> copy/cut/paste · <b>Delete</b> erase · <b>Backspace</b> fill</li>
       <li><b>Ctrl+N/O/S</b> new/open/save · <b>F5–F8</b> tool windows · <b>F4</b> layer properties</li>
-      <li><b>Space+drag</b> pan · <b>Ctrl+wheel</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> zoom to window</li>
+      <li><b>Space+drag</b> pan · <b>Ctrl+wheel / pinch</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> fit to view</li>
     </ul>
   `;
   const row = document.createElement("div");

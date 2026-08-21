@@ -181,7 +181,7 @@ function fileMenu(app: AppState): Item[] {
     {
       label: "Open Recent",
       children: app.recent.length
-        ? app.recent.map((r) => ({ label: r.name, action: () => undefined }))
+        ? app.recent.map((r) => ({ label: r.name, action: () => void app.openRecent(r.id) }))
         : [{ label: "(empty)", disabled: () => true }],
     },
     { sep: true },
@@ -220,19 +220,13 @@ function viewMenu(app: AppState): Item[] {
     { label: "Zoom In", acc: "Ctrl++", action: () => { app.viewport.zoomIn(); app.notify("viewport"); } },
     { label: "Zoom Out", acc: "Ctrl+-", action: () => { app.viewport.zoomOut(); app.notify("viewport"); } },
     {
-      label: "Zoom to Window",
+      label: "Fit to View",
       acc: "Ctrl+B",
-      action: () => {
-        if (app.session.zoomBeforeFit == null) {
-          app.session.zoomBeforeFit = app.viewport.zoom;
-          app.viewport.fitToWindow(app.document.width, app.document.height);
-        } else {
-          app.viewport.setZoom(app.session.zoomBeforeFit);
-          app.viewport.center(app.document.width, app.document.height);
-          app.session.zoomBeforeFit = null;
-        }
-        app.notify("viewport");
-      },
+      action: () => app.fitToView(),
+    },
+    {
+      label: "Zoom to Window",
+      action: () => app.fitToView(),
     },
     {
       label: "Zoom to Selection",

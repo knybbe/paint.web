@@ -67,11 +67,14 @@ export function renderWorkspace(
   overlay?: OverlayDrawer,
   floating?: FloatingSelection | null,
 ): void {
-  const { width: vw, height: vh } = ctx.canvas;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, vw, vh);
+  const cssW = Math.max(1, vp.viewWidth);
+  const cssH = Math.max(1, vp.viewHeight);
+  const sx = ctx.canvas.width / cssW;
+  const sy = ctx.canvas.height / cssH;
+  ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
   ctx.fillStyle = "#808080";
-  ctx.fillRect(0, 0, vw, vh);
+  ctx.fillRect(0, 0, cssW, cssH);
 
   const dw = doc.width * vp.zoom;
   const dh = doc.height * vp.zoom;

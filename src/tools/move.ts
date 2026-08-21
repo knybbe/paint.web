@@ -14,6 +14,7 @@ interface MoveDrag {
   origBounds: Rect;
   copy: boolean;
   angle0: number;
+  origMask: Uint8Array | null;
   pixels?: PixelBuffer;
   hole?: Uint8ClampedArray;
   layerId?: string;
@@ -97,6 +98,7 @@ export const moveSelection: Tool = {
       origBounds: { ...b },
       copy: e.ctrlKey,
       angle0: Math.atan2(e.imageY - (b.y + b.h / 2), e.imageX - (b.x + b.w / 2)),
+      origMask: ctx.selection.mask ? new Uint8Array(ctx.selection.mask) : null,
     };
   },
   pointerMove(e, ctx) {
@@ -136,7 +138,11 @@ export const moveSelection: Tool = {
 function applySelectionTransform(ctx: ToolContext, drag: MoveDrag, e: ToolPointer): void {
   const dx = e.imageX - drag.start.x;
   const dy = e.imageY - drag.start.y;
-  const orig = ctx.selection.clone();
+  const orig = {
+    mask: drag.origMask ? new Uint8Array(drag.origMask) : null,
+    width: ctx.selection.width,
+    height: ctx.selection.height,
+  };
   if (drag.handle === "rotate") {
     const b = drag.origBounds;
     const origin = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
@@ -144,7 +150,8 @@ function applySelectionTransform(ctx: ToolContext, drag: MoveDrag, e: ToolPointe
     if (e.shiftKey) ang = Math.round(ang / (Math.PI / 12)) * (Math.PI / 12);
     rotateSelection(ctx, orig, origin, ang);
   } else if (drag.handle === "move") {
-    ctx.selection.mask = orig.mask ? new Uint8Array(orig.mask) : null;
+    ctx.selection.mask = orig.mask;
+    ctx.selection.markDirty();
     ctx.selection.translate(Math.round(dx), Math.round(dy));
   } else {
     const nb = transformRect(drag.origBounds, drag.handle, dx, dy, e.shiftKey, e.altKey);
@@ -210,6 +217,7 @@ export const movePixels: Tool = {
         origBounds: { x: ctx.floating.x, y: ctx.floating.y, w: ctx.floating.buffer.width, h: ctx.floating.buffer.height },
         copy: true,
         angle0: 0,
+        origMask: ctx.selection.mask ? new Uint8Array(ctx.selection.mask) : null,
       };
       return;
     }
@@ -234,6 +242,7 @@ export const movePixels: Tool = {
       origBounds: { ...b },
       copy: e.ctrlKey,
       angle0: Math.atan2(e.imageY - (b.y + b.h / 2), e.imageX - (b.x + b.w / 2)),
+      origMask: ctx.selection.mask ? new Uint8Array(ctx.selection.mask) : null,
       pixels,
       hole: before,
       layerId: layer.id,
