@@ -2,6 +2,7 @@ import "./styles/app.css";
 import { AppState } from "./app-state";
 import { mountShell } from "./ui/shell";
 import { bindShortcuts } from "./shortcuts";
+import { mountCommandPalette } from "./ui/react/command-palette";
 import { registerSW } from "virtual:pwa-register";
 
 const root = document.getElementById("app");
@@ -12,6 +13,7 @@ const app = new AppState();
 async function boot(): Promise<void> {
   await app.init();
   mountShell(root!, app);
+  mountCommandPalette(app);
   bindShortcuts(app);
   (window as unknown as { __PAINT_APP__: AppState }).__PAINT_APP__ = app;
   root!.dataset.ready = "1";

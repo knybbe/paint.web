@@ -1,6 +1,7 @@
 import type { AppState } from "../app-state";
 import { effectsByMenu, getEffect } from "../effects/registry";
 import type { EffectDef } from "../effects/base";
+import { runCommand } from "../commands";
 
 interface Item {
   label?: string;
@@ -176,8 +177,8 @@ function fillItems(host: HTMLElement, items: Item[], close: () => void): void {
 
 function fileMenu(app: AppState): Item[] {
   return [
-    { label: "New...", acc: "Ctrl+N", action: () => app.openDialog({ type: "new" }) },
-    { label: "Open...", acc: "Ctrl+O", action: () => void app.openFiles() },
+    { label: "New...", acc: "Ctrl+N", action: () => runCommand(app, "file.new") },
+    { label: "Open...", acc: "Ctrl+O", action: () => runCommand(app, "file.open") },
     {
       label: "Open Recent",
       children: app.recent.length
@@ -186,8 +187,8 @@ function fileMenu(app: AppState): Item[] {
     },
     { sep: true },
     { label: "Close", acc: "Ctrl+W", action: () => app.closeSession() },
-    { label: "Save", acc: "Ctrl+S", action: () => void app.save(false) },
-    { label: "Save As...", acc: "Ctrl+Shift+S", action: () => void app.save(true) },
+    { label: "Save", acc: "Ctrl+S", action: () => runCommand(app, "file.save") },
+    { label: "Save As...", acc: "Ctrl+Shift+S", action: () => runCommand(app, "file.saveAs") },
     { sep: true },
     { label: "Print...", acc: "Ctrl+P", action: () => app.print() },
     { sep: true },
@@ -197,32 +198,32 @@ function fileMenu(app: AppState): Item[] {
 
 function editMenu(app: AppState): Item[] {
   return [
-    { label: "Undo" + (app.history.undoName ? ` ${app.history.undoName}` : ""), acc: "Ctrl+Z", disabled: () => !app.history.canUndo, action: () => app.undo() },
-    { label: "Redo" + (app.history.redoName ? ` ${app.history.redoName}` : ""), acc: "Ctrl+Y", disabled: () => !app.history.canRedo, action: () => app.redo() },
+    { label: "Undo" + (app.history.undoName ? ` ${app.history.undoName}` : ""), acc: "Ctrl+Z", disabled: () => !app.history.canUndo, action: () => runCommand(app, "edit.undo") },
+    { label: "Redo" + (app.history.redoName ? ` ${app.history.redoName}` : ""), acc: "Ctrl+Y", disabled: () => !app.history.canRedo, action: () => runCommand(app, "edit.redo") },
     { sep: true },
-    { label: "Cut", acc: "Ctrl+X", action: () => void app.cut() },
-    { label: "Copy", acc: "Ctrl+C", action: () => void app.copy(false) },
-    { label: "Copy Merged", acc: "Ctrl+Shift+C", action: () => void app.copy(true) },
-    { label: "Paste", acc: "Ctrl+V", action: () => void app.paste("normal") },
+    { label: "Cut", acc: "Ctrl+X", action: () => runCommand(app, "edit.cut") },
+    { label: "Copy", acc: "Ctrl+C", action: () => runCommand(app, "edit.copy") },
+    { label: "Copy Merged", acc: "Ctrl+Shift+C", action: () => runCommand(app, "edit.copyMerged") },
+    { label: "Paste", acc: "Ctrl+V", action: () => runCommand(app, "edit.paste") },
     { label: "Paste into New Layer", acc: "Ctrl+Shift+V", action: () => void app.paste("newLayer") },
     { label: "Paste into New Image", acc: "Ctrl+Alt+V", action: () => void app.paste("newImage") },
     { sep: true },
     { label: "Erase Selection", acc: "Delete", action: () => app.eraseSelection() },
     { label: "Fill Selection", acc: "Backspace", action: () => app.fillSelection() },
-    { label: "Invert Selection", acc: "Ctrl+I", action: () => app.invertSelection() },
-    { label: "Select All", acc: "Ctrl+A", action: () => app.selectAll() },
-    { label: "Deselect", acc: "Ctrl+D", action: () => app.deselect() },
+    { label: "Invert Selection", acc: "Ctrl+I", action: () => runCommand(app, "edit.invertSelection") },
+    { label: "Select All", acc: "Ctrl+A", action: () => runCommand(app, "edit.selectAll") },
+    { label: "Deselect", acc: "Ctrl+D", action: () => runCommand(app, "edit.deselect") },
   ];
 }
 
 function viewMenu(app: AppState): Item[] {
   return [
-    { label: "Zoom In", acc: "Ctrl++", action: () => { app.viewport.zoomIn(); app.notify("viewport"); } },
-    { label: "Zoom Out", acc: "Ctrl+-", action: () => { app.viewport.zoomOut(); app.notify("viewport"); } },
+    { label: "Zoom In", acc: "Ctrl++", action: () => runCommand(app, "view.zoomIn") },
+    { label: "Zoom Out", acc: "Ctrl+-", action: () => runCommand(app, "view.zoomOut") },
     {
       label: "Fit to View",
       acc: "Ctrl+B",
-      action: () => app.fitToView(),
+      action: () => runCommand(app, "view.fit"),
     },
     {
       label: "Zoom to Window",
@@ -238,50 +239,40 @@ function viewMenu(app: AppState): Item[] {
         app.notify("viewport");
       },
     },
-    { label: "Actual Size", acc: "Ctrl+0", action: () => { app.viewport.actualSize(app.document.width, app.document.height); app.notify("viewport"); } },
+    { label: "Actual Size", acc: "Ctrl+0", action: () => runCommand(app, "view.actualSize") },
     { sep: true },
     {
       label: "Rulers",
       check: () => app.viewport.showRulers,
-      action: () => {
-        app.viewport.showRulers = !app.viewport.showRulers;
-        app.notify("viewport");
-      },
+      action: () => runCommand(app, "view.rulers"),
     },
     {
       label: "Pixel Grid",
       check: () => app.viewport.showPixelGrid,
-      action: () => {
-        app.viewport.showPixelGrid = !app.viewport.showPixelGrid;
-        app.notify("viewport");
-      },
+      action: () => runCommand(app, "view.pixelGrid"),
     },
     { sep: true },
     {
       label: "Dark Theme",
       check: () => app.settings.theme === "dark",
-      action: () => {
-        app.settings.theme = app.settings.theme === "dark" ? "light" : "dark";
-        app.applyTheme();
-        void app.persistSettings();
-      },
+      action: () => runCommand(app, "view.theme"),
     },
   ];
 }
 
 function imageMenu(app: AppState): Item[] {
   return [
-    { label: "Crop to Selection", acc: "Ctrl+Shift+X", disabled: () => app.selection.empty, action: () => app.cropToSelection() },
-    { label: "Resize...", acc: "Ctrl+R", action: () => app.openDialog({ type: "resize" }) },
-    { label: "Canvas Size...", acc: "Ctrl+Shift+R", action: () => app.openDialog({ type: "canvas" }) },
+    { label: "Crop to Selection", acc: "Ctrl+Shift+X", disabled: () => app.selection.empty, action: () => runCommand(app, "edit.crop") },
+    { label: "Resize...", acc: "Ctrl+R", action: () => runCommand(app, "image.resize") },
+    { label: "Canvas Size...", acc: "Ctrl+Shift+R", action: () => runCommand(app, "image.canvasSize") },
     { sep: true },
-    { label: "Rotate 90° Clockwise", acc: "Ctrl+H", action: () => app.transform("rotate90cw") },
-    { label: "Rotate 90° Counter-Clockwise", acc: "Ctrl+G", action: () => app.transform("rotate90ccw") },
-    { label: "Rotate 180°", action: () => app.transform("rotate180") },
-    { label: "Flip Horizontal", action: () => app.transform("flipH") },
-    { label: "Flip Vertical", action: () => app.transform("flipV") },
+    { label: "Rotate 90° Clockwise", acc: "Ctrl+H", action: () => runCommand(app, "image.rotate90cw") },
+    { label: "Rotate 90° Counter-Clockwise", acc: "Ctrl+G", action: () => runCommand(app, "image.rotate90ccw") },
+    { label: "Rotate 180°", action: () => runCommand(app, "image.rotate180") },
+    { label: "Flip Horizontal", action: () => runCommand(app, "image.flipH") },
+    { label: "Flip Vertical", action: () => runCommand(app, "image.flipV") },
     { sep: true },
-    { label: "Flatten", acc: "Ctrl+Shift+F", action: () => app.flatten() },
+    { label: "Flatten", acc: "Ctrl+Shift+F", action: () => runCommand(app, "image.flatten") },
   ];
 }
 
@@ -343,39 +334,33 @@ function effectsMenu(app: AppState): Item[] {
 }
 
 function effectItem(app: AppState, e: EffectDef): Item {
+  const id = e.menu === "Adjustments" ? `adj.${e.id}` : `effect.${e.id}`;
   return {
     label: e.name + (e.params.length ? "..." : ""),
     acc: e.shortcut,
     action: () => {
-      if (e.params.length) app.openDialog({ type: "effect", effectId: e.id });
-      else app.applyEffect(e, paramEmpty(e));
+      runCommand(app, id);
     },
   };
 }
 
-function paramEmpty(e: EffectDef): Record<string, number | boolean | string> {
-  const o: Record<string, number | boolean | string> = {};
-  for (const p of e.params) o[p.key] = p.value;
-  return o;
-}
-
 function windowMenu(app: AppState): Item[] {
   return [
-    { label: "Tools", acc: "F5", check: () => app.windows.tools, action: () => app.toggleWindow("tools") },
-    { label: "History", acc: "F6", check: () => app.windows.history, action: () => app.toggleWindow("history") },
-    { label: "Layers", acc: "F7", check: () => app.windows.layers, action: () => app.toggleWindow("layers") },
-    { label: "Colors", acc: "F8", check: () => app.windows.colors, action: () => app.toggleWindow("colors") },
+    { label: "Tools", acc: "F5", check: () => app.windows.tools, action: () => runCommand(app, "window.tools") },
+    { label: "History", acc: "F6", check: () => app.windows.history, action: () => runCommand(app, "window.history") },
+    { label: "Layers", acc: "F7", check: () => app.windows.layers, action: () => runCommand(app, "window.layers") },
+    { label: "Colors", acc: "F8", check: () => app.windows.colors, action: () => runCommand(app, "window.colors") },
     { sep: true },
     { label: "Next Image", acc: "Ctrl+Tab", action: () => app.nextSession(1) },
     { label: "Previous Image", acc: "Ctrl+Shift+Tab", action: () => app.nextSession(-1) },
     { sep: true },
-    { label: "Settings...", acc: "Alt+X", action: () => app.openDialog({ type: "settings" }) },
+    { label: "Settings...", acc: "Alt+X", action: () => runCommand(app, "file.settings") },
   ];
 }
 
 function helpMenu(app: AppState): Item[] {
   return [
-    { label: "Keyboard Shortcuts", acc: "F1", action: () => app.openDialog({ type: "shortcuts" }) },
-    { label: "About paint.web", action: () => app.openDialog({ type: "about" }) },
+    { label: "Keyboard Shortcuts", acc: "F1", action: () => runCommand(app, "help.shortcuts") },
+    { label: "About paint.web", action: () => runCommand(app, "help.about") },
   ];
 }

@@ -113,6 +113,15 @@ body {
   overflow: hidden;
 }
 
+/* Sibling React host must not steal layout from #app (height: 100%). */
+#react-overlay {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
 .menubar {
   display: flex;
   align-items: stretch;
