@@ -1,4 +1,6 @@
-/* Skip preflight so vanilla chrome keeps its existing resets. */
+/* Skip preflight so vanilla chrome keeps its existing resets.
+   shadcn CLI is pointed here (components.json tailwind.css). Do not replace these
+   imports with `@import "tailwindcss"` — that would pull in preflight. */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);

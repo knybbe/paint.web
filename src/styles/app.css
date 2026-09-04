@@ -1,3 +1,4 @@
+/* Tailwind lives in tailwind.css (theme + utilities only). Do not add @import "tailwindcss" here — that injects preflight and resets vanilla chrome. */
 @import "./tailwind.css";
 
 :root,
