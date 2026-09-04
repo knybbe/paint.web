@@ -496,7 +496,7 @@ export function mountStatus(root: HTMLElement, app: AppState): void {
   fit.addEventListener("click", () => app.fitToView());
   const range = document.createElement("input");
   range.type = "range";
-  range.min = "1";
+  range.min = "10";
   range.max = "3200";
   range.title = "Zoom";
   const txt = document.createElement("input");

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { rgb } from "../src/core/color";
 import { PdDocument } from "../src/core/document";
-import { applyDocument, rebuildHistory, restoreDocument, serializeDocument } from "../src/core/persist";
+import {
+  applyDocument,
+  rebuildHistory,
+  restoreDocument,
+  restoreViewport,
+  serializeDocument,
+} from "../src/core/persist";
+import { MIN_ZOOM, Viewport } from "../src/core/viewport";
 
 describe("workspace persistence", () => {
   it("round-trips layer pixels and metadata", () => {
@@ -41,5 +48,25 @@ describe("workspace persistence", () => {
     expect(live.activeLayer.buffer.getPixel(0, 0).r).toBe(255);
     hist.redo();
     expect(live.activeLayer.buffer.getPixel(0, 0).g).toBe(255);
+  });
+
+  it("restoreViewport clamps zoom below the floor", () => {
+    const vp = new Viewport();
+    restoreViewport(vp, {
+      zoom: 0.02,
+      panX: 12,
+      panY: 34,
+      showRulers: false,
+      showPixelGrid: true,
+      showGuides: false,
+      guides: [{ orientation: "h", position: 10 }],
+    });
+    expect(vp.zoom).toBe(MIN_ZOOM);
+    expect(vp.panX).toBe(12);
+    expect(vp.panY).toBe(34);
+    expect(vp.showRulers).toBe(false);
+    expect(vp.showPixelGrid).toBe(true);
+    expect(vp.showGuides).toBe(false);
+    expect(vp.guides).toEqual([{ orientation: "h", position: 10 }]);
   });
 });

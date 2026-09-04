@@ -1,10 +1,9 @@
 import { clamp, type Point, type Rect } from "./geometry";
 
-export const MIN_ZOOM = 0.01;
+export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 32;
 export const ZOOM_STEPS = [
-  0.01, 0.02, 0.03, 0.04, 0.05, 0.0625, 0.0833, 0.125, 0.1667, 0.25, 0.333, 0.5, 0.666, 1, 1.5, 2, 3, 4, 5, 6, 8, 12,
-  16, 24, 32,
+  0.1, 0.125, 0.1667, 0.25, 0.333, 0.5, 0.666, 1, 1.5, 2, 3, 4, 5, 6, 8, 12, 16, 24, 32,
 ];
 
 export class Viewport {

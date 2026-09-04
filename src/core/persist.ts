@@ -209,7 +209,7 @@ export function serializeViewport(vp: Viewport): SerializedViewport {
 }
 
 export function restoreViewport(vp: Viewport, snap: SerializedViewport): void {
-  vp.zoom = snap.zoom;
+  vp.setZoom(snap.zoom);
   vp.panX = snap.panX;
   vp.panY = snap.panY;
   vp.showRulers = snap.showRulers;

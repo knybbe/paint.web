@@ -61,4 +61,27 @@ describe("Viewport", () => {
     expect(zoomFactorFromWheel(400, 0)).toBe(0.85);
     expect(zoomFactorFromWheel(-400, 0)).toBe(1.15);
   });
+
+  it("clamps setZoom below the floor to 10%", () => {
+    const vp = new Viewport();
+    vp.setZoom(0.05);
+    expect(vp.zoom).toBe(0.1);
+  });
+
+  it("zoomOut floors at 10%", () => {
+    const vp = new Viewport();
+    vp.setZoom(0.125);
+    vp.zoomOut();
+    expect(vp.zoom).toBe(0.1);
+    vp.zoomOut();
+    expect(vp.zoom).toBe(0.1);
+  });
+
+  it("fitToWindow of a huge document floors at 10%", () => {
+    const vp = new Viewport();
+    vp.viewWidth = 400;
+    vp.viewHeight = 300;
+    vp.fitToWindow(10000, 10000);
+    expect(vp.zoom).toBe(0.1);
+  });
 });
