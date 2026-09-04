@@ -7,13 +7,59 @@ import type { EffectDef } from "../effects/base";
 
 export type RibbonTab = "home" | "tools" | "image" | "adjustFx" | "layers" | "view";
 
+const RIBBON_TABS: { id: RibbonTab; label: string }[] = [
+  { id: "home", label: "Home" },
+  { id: "tools", label: "Tools" },
+  { id: "image", label: "Image" },
+  { id: "adjustFx", label: "Adjust & FX" },
+  { id: "layers", label: "Layers" },
+  { id: "view", label: "View" },
+];
+
+const COMPACT_TABS_MQ = "(max-width: 1100px)";
+
 export function mountRibbon(root: HTMLElement, app: AppState): void {
   root.classList.add("ribbon-bar");
   root.dataset.testid = "ribbon-bar";
 
   let activeTab: RibbonTab = "home";
+  let tabsMenuOpen = false;
+  let preserveMenu = false;
+  let awayAbort: AbortController | null = null;
+
+  if (typeof window.matchMedia === "function" && window.matchMedia(COMPACT_TABS_MQ).matches) {
+    root.classList.add("compact-tabs");
+    root.dataset.compactTabs = "1";
+  }
+
+  const currentTab = () => RIBBON_TABS.find((t) => t.id === activeTab) ?? RIBBON_TABS[0];
+
+  const selectTab = (id: RibbonTab) => {
+    tabsMenuOpen = false;
+    if (activeTab !== id) activeTab = id;
+    render();
+  };
+
+  const syncCompactTabs = () => {
+    const mq = typeof window.matchMedia === "function" && window.matchMedia(COMPACT_TABS_MQ).matches;
+    if (mq) {
+      root.classList.add("compact-tabs");
+      root.dataset.compactTabs = "1";
+      return;
+    }
+    root.classList.remove("compact-tabs");
+    const list = root.querySelector<HTMLElement>(".ribbon-tabs-list");
+    const overflow = Boolean(list && list.scrollWidth > list.clientWidth + 1);
+    root.classList.toggle("compact-tabs", overflow);
+    if (overflow) root.dataset.compactTabs = "1";
+    else delete root.dataset.compactTabs;
+  };
 
   const render = () => {
+    if (!preserveMenu) tabsMenuOpen = false;
+    preserveMenu = false;
+    awayAbort?.abort();
+    awayAbort = null;
     root.replaceChildren();
 
     // 1. Quick Access Title Bar
@@ -26,6 +72,80 @@ export function mountRibbon(root: HTMLElement, app: AppState): void {
       <span class="ribbon-brand-icon">🎨</span>
       <span class="ribbon-brand-title">paint.web</span>
     `;
+
+    const dropWrap = document.createElement("div");
+    dropWrap.className = "ribbon-tabs-dropdown";
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = `ribbon-tabs-dropdown-btn${tabsMenuOpen ? " open" : ""}`;
+    trigger.dataset.testid = "ribbon-tab-dropdown";
+    trigger.setAttribute("aria-haspopup", "menu");
+    trigger.setAttribute("aria-expanded", String(tabsMenuOpen));
+    trigger.title = "Switch ribbon tab";
+    const triggerLabel = document.createElement("span");
+    triggerLabel.textContent = currentTab().label;
+    const chevron = document.createElement("span");
+    chevron.className = "ribbon-tabs-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = "▾";
+    trigger.append(triggerLabel, chevron);
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tabsMenuOpen = !tabsMenuOpen;
+      preserveMenu = true;
+      render();
+    });
+
+    const menu = document.createElement("div");
+    menu.className = "ribbon-tabs-menu";
+    menu.dataset.testid = "ribbon-tabs-menu";
+    menu.setAttribute("role", "menu");
+    if (!tabsMenuOpen) menu.hidden = true;
+
+    for (const t of RIBBON_TABS) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `ribbon-tabs-menu-item${activeTab === t.id ? " active" : ""}`;
+      item.dataset.testid = `ribbon-tab-menu-${t.id}`;
+      item.setAttribute("role", "menuitem");
+      item.setAttribute("aria-current", activeTab === t.id ? "page" : "false");
+      item.textContent = t.label;
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        selectTab(t.id);
+      });
+      menu.append(item);
+    }
+
+    dropWrap.append(trigger, menu);
+
+    if (tabsMenuOpen) {
+      awayAbort = new AbortController();
+      const { signal } = awayAbort;
+      window.addEventListener(
+        "pointerdown",
+        (e) => {
+          if (!dropWrap.contains(e.target as Node)) {
+            tabsMenuOpen = false;
+            preserveMenu = true;
+            render();
+          }
+        },
+        { signal },
+      );
+      window.addEventListener(
+        "keydown",
+        (e) => {
+          if (e.key === "Escape") {
+            tabsMenuOpen = false;
+            preserveMenu = true;
+            render();
+          }
+        },
+        { signal },
+      );
+    }
 
     const quickActions = document.createElement("div");
     quickActions.className = "ribbon-quick-actions";
@@ -64,24 +184,19 @@ export function mountRibbon(root: HTMLElement, app: AppState): void {
     const sessionInfo = document.createElement("div");
     sessionInfo.className = "ribbon-session-info";
     sessionInfo.textContent = `${app.document.name} (${Math.round(app.viewport.zoom * 100)}%)`;
+    sessionInfo.title = sessionInfo.textContent;
 
-    topBar.append(brand, quickActions, sessionInfo);
+    topBar.append(brand, dropWrap, quickActions, sessionInfo);
 
     // 2. Ribbon Tabs Navigation
     const tabsBar = document.createElement("nav");
     tabsBar.className = "ribbon-tabs";
     tabsBar.setAttribute("role", "tablist");
 
-    const tabs: { id: RibbonTab; label: string }[] = [
-      { id: "home", label: "Home" },
-      { id: "tools", label: "Tools" },
-      { id: "image", label: "Image" },
-      { id: "adjustFx", label: "Adjust & FX" },
-      { id: "layers", label: "Layers" },
-      { id: "view", label: "View" },
-    ];
+    const tabsList = document.createElement("div");
+    tabsList.className = "ribbon-tabs-list";
 
-    for (const t of tabs) {
+    for (const t of RIBBON_TABS) {
       const tabBtn = document.createElement("button");
       tabBtn.type = "button";
       tabBtn.className = `ribbon-tab-btn ${activeTab === t.id ? "active" : ""}`;
@@ -89,14 +204,10 @@ export function mountRibbon(root: HTMLElement, app: AppState): void {
       tabBtn.setAttribute("aria-selected", String(activeTab === t.id));
       tabBtn.dataset.testid = `ribbon-tab-${t.id}`;
       tabBtn.textContent = t.label;
-      tabBtn.addEventListener("click", () => {
-        if (activeTab !== t.id) {
-          activeTab = t.id;
-          render();
-        }
-      });
-      tabsBar.append(tabBtn);
+      tabBtn.addEventListener("click", () => selectTab(t.id));
+      tabsList.append(tabBtn);
     }
+    tabsBar.append(tabsList);
 
     // 3. Ribbon Body / Active Panel
     const body = document.createElement("div");
@@ -121,6 +232,7 @@ export function mountRibbon(root: HTMLElement, app: AppState): void {
     const contextualStrip = renderContextualStrip(app);
 
     root.append(topBar, tabsBar, body, contextualStrip);
+    syncCompactTabs();
   };
 
   render();
@@ -131,6 +243,12 @@ export function mountRibbon(root: HTMLElement, app: AppState): void {
   app.addEventListener("theme", render);
   app.addEventListener("viewport", render);
   app.addEventListener("document", render);
+
+  window.addEventListener("resize", syncCompactTabs);
+  if (typeof window.matchMedia === "function") {
+    const mq = window.matchMedia(COMPACT_TABS_MQ);
+    mq.addEventListener?.("change", syncCompactTabs);
+  }
 }
 
 // ---------------------------------------------
@@ -148,6 +266,7 @@ function renderHomeTab(app: AppState): HTMLElement {
     ribbonAction(UI_ICONS.open, "Open", "Ctrl+O", () => void app.openFiles(), false, "ribbon-file-open"),
     ribbonAction(UI_ICONS.save, "Save", "Ctrl+S", () => void app.save(false), false, "ribbon-file-save"),
     ribbonAction(UI_ICONS.save, "Save As", "Ctrl+Shift+S", () => void app.save(true), false, "ribbon-file-saveas"),
+    ribbonAction(UI_ICONS.settings, "Settings", "Alt+X", () => app.openDialog({ type: "settings" }), false, "ribbon-settings"),
   );
 
   // Clipboard Group
@@ -161,15 +280,37 @@ function renderHomeTab(app: AppState): HTMLElement {
 
   // Selection Group
   const selGroup = ribbonGroup("Selection");
+  const modeSel = document.createElement("select");
+  modeSel.className = "ribbon-select";
+  modeSel.title = "Selection Combine Mode";
+  for (const [m, label] of [
+    ["replace", "Replace"],
+    ["add", "Add"],
+    ["subtract", "Subtract"],
+    ["invert", "Invert"],
+    ["intersect", "Intersect"],
+  ] as const) {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = label;
+    if (m === app.options.selectionMode) opt.selected = true;
+    modeSel.append(opt);
+  }
+  modeSel.addEventListener("change", () => {
+    app.options.selectionMode = modeSel.value as any;
+  });
+
   selGroup.append(
     ribbonAction(UI_ICONS.crop, "Crop", "Ctrl+Shift+X", () => app.cropToSelection(), app.selection.empty, "ribbon-crop"),
     ribbonAction(UI_ICONS.deselect, "Deselect", "Ctrl+D", () => app.deselect(), app.selection.empty, "ribbon-deselect"),
     ribbonAction(TOOL_SVG.rectangleSelect, "Select All", "Ctrl+A", () => app.selectAll(), false, "ribbon-select-all"),
     ribbonAction(UI_ICONS.swap, "Invert", "Ctrl+I", () => app.invertSelection(), false, "ribbon-invert-sel"),
+    modeSel,
   );
 
   // History & Docks
   const docksGroup = ribbonGroup("Panels");
+  docksGroup.classList.add("ribbon-group-panels");
   docksGroup.append(
     ribbonAction(UI_ICONS.palette, "Colors", "F8", () => app.toggleWindow("colors"), false, "ribbon-win-colors"),
     ribbonAction(UI_ICONS.layers, "Layers", "F7", () => app.toggleWindow("layers"), false, "ribbon-win-layers"),
@@ -294,7 +435,9 @@ function renderAdjustFxTab(app: AppState): HTMLElement {
   repeatBtn.type = "button";
   repeatBtn.className = "ribbon-compact-btn highlight";
   repeatBtn.disabled = !app.lastEffect;
-  repeatBtn.textContent = app.lastEffect ? `Repeat ${getEffect(app.lastEffect.id)?.name ?? "Effect"}` : "Repeat Last Effect (Ctrl+F)";
+  const lastName = app.lastEffect ? getEffect(app.lastEffect.id)?.name ?? "Effect" : "";
+  repeatBtn.textContent = app.lastEffect ? `Repeat ${lastName}` : "Repeat Last";
+  repeatBtn.title = app.lastEffect ? `Repeat ${lastName} (Ctrl+F)` : "Repeat Last Effect (Ctrl+F)";
   repeatBtn.addEventListener("click", () => {
     if (app.lastEffect) {
       const e = getEffect(app.lastEffect.id);
@@ -308,7 +451,7 @@ function renderAdjustFxTab(app: AppState): HTMLElement {
     const sel = document.createElement("select");
     sel.className = "ribbon-select";
     const header = document.createElement("option");
-    header.textContent = `▼ ${cat} (${list.length})`;
+    header.textContent = `${cat} (${list.length})`;
     header.disabled = true;
     header.selected = true;
     sel.append(header);

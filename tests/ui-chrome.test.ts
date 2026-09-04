@@ -52,6 +52,54 @@ describe("Modern UI Chrome: Office-Style Ribbon & Mobile Deck", () => {
     expect(document.querySelector('[data-testid="tool-paintbrush"]')).toBeTruthy();
   });
 
+  it("switches ribbon tabs from the compact dropdown menu", () => {
+    const trigger = document.querySelector('[data-testid="ribbon-tab-dropdown"]');
+    expect(trigger).toBeTruthy();
+    expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+
+    click(trigger);
+    const openTrigger = document.querySelector('[data-testid="ribbon-tab-dropdown"]');
+    const menu = document.querySelector('[data-testid="ribbon-tabs-menu"]');
+    expect(menu).toBeTruthy();
+    expect((menu as HTMLElement).hidden).toBe(false);
+    expect(openTrigger?.getAttribute("aria-expanded")).toBe("true");
+
+    click(document.querySelector('[data-testid="ribbon-tab-menu-tools"]'));
+    expect(document.querySelector('[data-testid="ribbon-tab-tools"]')?.classList.contains("active")).toBe(true);
+    expect(document.querySelector('[data-testid="tool-paintbrush"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="ribbon-tab-dropdown"]')?.textContent).toContain("Tools");
+    expect(document.querySelector('[data-testid="ribbon-tabs-menu"]')?.hasAttribute("hidden")).toBe(true);
+  });
+
+  it("applies compact-tabs when the viewport is narrow", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: String(query).includes("1100px"),
+        media: query,
+        onchange: null,
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
+        dispatchEvent() {
+          return false;
+        },
+      })) as typeof window.matchMedia;
+
+    document.body.innerHTML = '<div id="app"></div>';
+    const narrowApp = new AppState();
+    await narrowApp.init();
+    mountShell(document.getElementById("app")!, narrowApp);
+    bindShortcuts(narrowApp);
+
+    const bar = document.querySelector('[data-testid="ribbon-bar"]');
+    expect(bar?.classList.contains("compact-tabs")).toBe(true);
+    expect(bar?.getAttribute("data-compact-tabs")).toBe("1");
+
+    window.matchMedia = original;
+  });
+
   it("runs File > New from Home ribbon tab and shows New Image dialog", () => {
     click(document.querySelector('[data-testid="ribbon-tab-home"]'));
     click(document.querySelector('[data-testid="ribbon-file-new"]'));

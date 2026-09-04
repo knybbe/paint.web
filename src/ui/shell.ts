@@ -75,4 +75,16 @@ export function mountShell(root: HTMLElement, app: AppState): void {
     { id: "layers", label: "Layers", host: layersHost },
     { id: "history", label: "History", host: historyHost },
   ]);
+
+  // Synchronize dock collapse when window panels are closed
+  const updateDocks = () => {
+    const leftVisible = app.windows.tools || app.windows.colors;
+    const rightVisible = app.windows.layers || app.windows.history;
+    left.classList.toggle("collapsed", !leftVisible);
+    right.classList.toggle("collapsed", !rightVisible);
+    workspace.classList.toggle("no-left-dock", !leftVisible);
+    workspace.classList.toggle("no-right-dock", !rightVisible);
+  };
+  updateDocks();
+  app.addEventListener("windows", updateDocks);
 }

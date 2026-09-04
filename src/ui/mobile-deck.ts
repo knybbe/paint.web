@@ -517,8 +517,8 @@ function renderColorSheet(app: AppState): HTMLElement {
       const c = { ...activeColor, b: v };
       app.setActiveColorValue(c);
     }),
-    touchSlider("Alpha", Math.round(activeColor.a * 100), 0, 100, "%", (v) => {
-      const c = { ...activeColor, a: v / 100 };
+    touchSlider("Alpha", Math.round((activeColor.a / 255) * 100), 0, 100, "%", (v) => {
+      const c = { ...activeColor, a: Math.round((v / 100) * 255) };
       app.setActiveColorValue(c);
     }),
   );
@@ -538,7 +538,9 @@ function renderLayersSheet(app: AppState): HTMLElement {
   actionRow.append(
     touchBtnWithIcon(UI_ICONS.addLayer, "Add", () => app.addLayer(), false, "mobile-layer-add"),
     touchBtnWithIcon(UI_ICONS.duplicateLayer, "Duplicate", () => app.duplicateLayer(), false, "mobile-layer-dup"),
-    touchBtnWithIcon(UI_ICONS.merge, "Merge Down", () => app.mergeDown(), app.document.activeIndex <= 0, "mobile-layer-merge"),
+    touchBtnWithIcon(UI_ICONS.arrowUp, "Up", () => app.moveActiveLayer(1), app.document.activeIndex >= app.document.layers.length - 1, "mobile-layer-up"),
+    touchBtnWithIcon(UI_ICONS.arrowDown, "Down", () => app.moveActiveLayer(-1), app.document.activeIndex <= 0, "mobile-layer-down"),
+    touchBtnWithIcon(UI_ICONS.merge, "Merge", () => app.mergeDown(), app.document.activeIndex <= 0, "mobile-layer-merge"),
     touchBtnWithIcon(UI_ICONS.deleteLayer, "Delete", () => app.deleteLayer(), app.document.layers.length <= 1, "mobile-layer-del"),
   );
   container.append(actionRow);

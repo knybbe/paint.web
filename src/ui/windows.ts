@@ -389,6 +389,8 @@ export function mountLayersWindow(host: HTMLElement, app: AppState): void {
       iconBtn(UI_ICONS.deleteLayer, "Delete", () => app.deleteLayer()),
       iconBtn(UI_ICONS.duplicateLayer, "Duplicate", () => app.duplicateLayer()),
       iconBtn(UI_ICONS.merge, "Merge Down", () => app.mergeDown()),
+      iconBtn(UI_ICONS.arrowUp, "Move Up", () => app.moveActiveLayer(1)),
+      iconBtn(UI_ICONS.arrowDown, "Move Down", () => app.moveActiveLayer(-1)),
     );
     const op = document.createElement("div");
     op.className = "opacity-row";

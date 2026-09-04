@@ -286,6 +286,10 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
 
   host.addEventListener("pointerup", finishPointer);
   host.addEventListener("pointercancel", finishPointer);
+  host.addEventListener("pointerleave", () => {
+    app.cursorImage = null;
+    app.notify("status");
+  });
   host.addEventListener("lostpointercapture", (e) => {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;

@@ -32,17 +32,53 @@ export function mountDialogHost(host: HTMLElement, app: AppState): void {
     else if (d.type === "shortcuts") renderShortcuts(box, app);
     else if (d.type === "saveAs") renderSaveAs(box, app, d.format);
     else if (d.type === "rotateZoom") renderRotateZoom(box, app);
+    else if (d.type === "confirmClose") renderConfirmClose(box, app, d.sessionId);
+
+    box.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const target = e.target as HTMLElement | null;
+        if (target && target.tagName === "TEXTAREA") return;
+        const primaryBtn = box.querySelector<HTMLButtonElement>(".actions .btn.primary");
+        if (primaryBtn && !primaryBtn.disabled) {
+          e.preventDefault();
+          primaryBtn.click();
+        }
+      }
+    });
+
+    requestAnimationFrame(() => {
+      const firstInput = box.querySelector<HTMLInputElement | HTMLSelectElement>("input:not([type=checkbox]):not([type=radio]), select");
+      if (firstInput) {
+        firstInput.focus();
+        if (firstInput instanceof HTMLInputElement && firstInput.type === "number") {
+          firstInput.select();
+        }
+      }
+    });
   };
   paint();
   app.addEventListener("dialog", paint);
 }
 
-function header(box: HTMLElement, title: string): HTMLElement {
+function header(box: HTMLElement, title: string, app?: AppState): HTMLElement {
+  const head = document.createElement("div");
+  head.className = "dialog-head";
   const h = document.createElement("h2");
   h.textContent = title;
+  head.append(h);
+  if (app) {
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "dialog-close-btn";
+    closeBtn.title = "Close (Esc)";
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.innerHTML = "&times;";
+    closeBtn.addEventListener("click", () => app.closeDialog());
+    head.append(closeBtn);
+  }
   const body = document.createElement("div");
   body.className = "body";
-  box.append(h, body);
+  box.append(head, body);
   return body;
 }
 
@@ -78,7 +114,7 @@ function num(value: number, min = 1, max = 32000): HTMLInputElement {
 }
 
 function renderNew(box: HTMLElement, app: AppState): void {
-  const body = header(box, "New Image");
+  const body = header(box, "New Image", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const w = num(app.settings.defaultWidth);
@@ -110,7 +146,7 @@ function renderNew(box: HTMLElement, app: AppState): void {
 }
 
 function renderResize(box: HTMLElement, app: AppState): void {
-  const body = header(box, "Resize");
+  const body = header(box, "Resize", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const w = num(app.document.width);
@@ -120,10 +156,16 @@ function renderResize(box: HTMLElement, app: AppState): void {
   keep.checked = true;
   const ratio = app.document.width / app.document.height;
   w.addEventListener("input", () => {
-    if (keep.checked) h.value = String(Math.max(1, Math.round(Number(w.value) / ratio)));
+    const val = Number(w.value);
+    if (keep.checked && !isNaN(val) && val > 0) {
+      h.value = String(Math.max(1, Math.round(val / ratio)));
+    }
   });
   h.addEventListener("input", () => {
-    if (keep.checked) w.value = String(Math.max(1, Math.round(Number(h.value) * ratio)));
+    const val = Number(h.value);
+    if (keep.checked && !isNaN(val) && val > 0) {
+      w.value = String(Math.max(1, Math.round(val * ratio)));
+    }
   });
   const resampling = document.createElement("select");
   resampling.innerHTML = `<option value="bilinear">Bilinear (Best Quality)</option><option value="nearest">Nearest Neighbor</option>`;
@@ -139,39 +181,59 @@ function renderResize(box: HTMLElement, app: AppState): void {
 }
 
 function renderCanvas(box: HTMLElement, app: AppState): void {
-  const body = header(box, "Canvas Size");
+  const body = header(box, "Canvas Size", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const w = num(app.document.width);
   const h = num(app.document.height);
-  const anchor = document.createElement("select");
-  const anchors = [
-    ["center", "Middle"],
-    ["nw", "Top Left"],
-    ["n", "Top"],
-    ["ne", "Top Right"],
-    ["w", "Left"],
-    ["e", "Right"],
-    ["sw", "Bottom Left"],
-    ["s", "Bottom"],
-    ["se", "Bottom Right"],
-  ];
-  for (const [v, l] of anchors) {
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = l;
-    anchor.append(o);
+
+  let currentAnchor = "center";
+  const anchorContainer = document.createElement("div");
+  anchorContainer.className = "anchor-container";
+  anchorContainer.style.display = "flex";
+  anchorContainer.style.flexDirection = "column";
+  anchorContainer.style.gap = "4px";
+
+  const grid = document.createElement("div");
+  grid.className = "anchor-grid";
+
+  const anchorIcons: Record<string, string> = {
+    nw: "↖", n: "⬆", ne: "↗",
+    w: "⬅", center: "⏺", e: "➡",
+    sw: "↙", s: "⬇", se: "↘",
+  };
+
+  const anchorButtons: { id: string; btn: HTMLButtonElement }[] = [];
+  const anchorsOrder = ["nw", "n", "ne", "w", "center", "e", "sw", "s", "se"];
+
+  for (const aId of anchorsOrder) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `anchor-btn ${aId === currentAnchor ? "active" : ""}`;
+    btn.textContent = anchorIcons[aId];
+    btn.title = aId;
+    btn.addEventListener("click", () => {
+      currentAnchor = aId;
+      for (const item of anchorButtons) {
+        item.btn.classList.toggle("active", item.id === currentAnchor);
+      }
+    });
+    anchorButtons.push({ id: aId, btn });
+    grid.append(btn);
   }
+
+  anchorContainer.append(grid);
+
   field(g, "Width", w);
   field(g, "Height", h);
-  field(g, "Anchor", anchor);
+  field(g, "Anchor", anchorContainer);
   body.append(g);
   actions(box, "OK", () => {
     const nw = Number(w.value) || 1;
     const nh = Number(h.value) || 1;
     const dw = nw - app.document.width;
     const dh = nh - app.document.height;
-    const a = anchor.value;
+    const a = currentAnchor;
     const ox = a.includes("e") ? 0 : a.includes("w") ? dw : Math.round(dw / 2);
     const oy = a.includes("s") ? 0 : a.includes("n") ? dh : Math.round(dh / 2);
     app.resizeCanvas(nw, nh, ox, oy);
@@ -181,7 +243,7 @@ function renderCanvas(box: HTMLElement, app: AppState): void {
 
 function renderLayerProps(box: HTMLElement, app: AppState): void {
   const layer = app.document.activeLayer;
-  const body = header(box, "Layer Properties");
+  const body = header(box, "Layer Properties", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const name = document.createElement("input");
@@ -226,7 +288,7 @@ function renderEffect(box: HTMLElement, app: AppState, id: string): void {
     app.closeDialog();
     return;
   }
-  const body = header(box, effect.name);
+  const body = header(box, effect.name, app);
   const params = effect.params.map((p) => ({ ...p }));
   const layer = app.document.activeLayer;
   const original = layer.buffer.clone();
@@ -316,7 +378,7 @@ function drawPreview(canvas: HTMLCanvasElement, buf: import("../core/pixel-buffe
 }
 
 function renderAbout(box: HTMLElement, app: AppState): void {
-  const body = header(box, "About paint.web");
+  const body = header(box, "About paint.web", app);
   body.innerHTML = `
     <p><strong>paint.web</strong> is an unofficial, independent Progressive Web App inspired by
     Paint.NET (Rick Brewster / dotPDN LLC). It is not affiliated with or endorsed by the Paint.NET authors.</p>
@@ -335,7 +397,7 @@ function renderAbout(box: HTMLElement, app: AppState): void {
 }
 
 function renderSettings(box: HTMLElement, app: AppState): void {
-  const body = header(box, "Settings");
+  const body = header(box, "Settings", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const theme = document.createElement("select");
@@ -374,7 +436,7 @@ function renderSettings(box: HTMLElement, app: AppState): void {
 }
 
 function renderShortcuts(box: HTMLElement, app: AppState): void {
-  const body = header(box, "Keyboard Shortcuts");
+  const body = header(box, "Keyboard Shortcuts", app);
   body.innerHTML = `
     <p>Shortcuts match Paint.NET as closely as possible.</p>
     <ul>
@@ -397,7 +459,7 @@ function renderShortcuts(box: HTMLElement, app: AppState): void {
 }
 
 function renderSaveAs(box: HTMLElement, app: AppState, format: SaveFormat): void {
-  const body = header(box, "Save As");
+  const body = header(box, "Save As", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const name = document.createElement("input");
@@ -423,7 +485,7 @@ function renderSaveAs(box: HTMLElement, app: AppState, format: SaveFormat): void
 }
 
 function renderRotateZoom(box: HTMLElement, app: AppState): void {
-  const body = header(box, "Rotate / Zoom Layer");
+  const body = header(box, "Rotate / Zoom Layer", app);
   const g = document.createElement("div");
   g.className = "form-grid";
   const ang = num(0, -180, 180);
@@ -454,4 +516,55 @@ function renderRotateZoom(box: HTMLElement, app: AppState): void {
     });
     app.closeDialog();
   }, app);
+}
+
+function renderConfirmClose(box: HTMLElement, app: AppState, sessionId: string): void {
+  const session = app.sessions.find((s) => s.id === sessionId);
+  const name = session ? session.document.name : "Document";
+  const body = header(box, "Save Changes?", app);
+
+  const msg = document.createElement("p");
+  msg.style.margin = "8px 0 12px";
+  msg.style.lineHeight = "1.5";
+  msg.textContent = `Do you want to save changes to "${name}" before closing?`;
+
+  const warning = document.createElement("p");
+  warning.style.fontSize = "11.5px";
+  warning.style.color = "var(--pdn-text-dim)";
+  warning.style.margin = "0 0 16px";
+  warning.textContent = "If you don't save, your unsaved changes will be permanently discarded.";
+
+  body.append(msg, warning);
+
+  const row = document.createElement("div");
+  row.className = "actions";
+  row.style.display = "flex";
+  row.style.gap = "8px";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "btn";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => app.closeDialog());
+
+  const dontSaveBtn = document.createElement("button");
+  dontSaveBtn.type = "button";
+  dontSaveBtn.className = "btn";
+  dontSaveBtn.style.color = "var(--pdn-danger, #ef4444)";
+  dontSaveBtn.textContent = "Don't Save";
+  dontSaveBtn.addEventListener("click", () => {
+    app.closeSessionFinal(sessionId);
+  });
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn primary";
+  saveBtn.textContent = "Save";
+  saveBtn.addEventListener("click", async () => {
+    await app.save();
+    app.closeSessionFinal(sessionId);
+  });
+
+  row.append(cancelBtn, dontSaveBtn, saveBtn);
+  box.append(row);
 }

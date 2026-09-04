@@ -273,6 +273,8 @@ export const UI_ICONS: Record<string, string> = {
      <path d="M12 7v5l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
      <path d="M4.5 9L3 5h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`,
   ),
+  arrowUp: icon(`<path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`),
+  arrowDown: icon(`<path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`),
 };
 
 export function svgEl(svg: string, className?: string): HTMLElement {
