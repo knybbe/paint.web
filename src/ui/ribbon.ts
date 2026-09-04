@@ -8,7 +8,7 @@ import type { EffectDef } from "../effects/base";
 export type RibbonTab = "home" | "tools" | "image" | "adjustFx" | "layers" | "view";
 
 export function mountRibbon(root: HTMLElement, app: AppState): void {
-  root.className = "ribbon-bar";
+  root.classList.add("ribbon-bar");
   root.dataset.testid = "ribbon-bar";
 
   let activeTab: RibbonTab = "home";

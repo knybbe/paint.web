@@ -27,9 +27,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build
-      - run: touch dist/.nojekyll
-
       - name: Determine deployment directory
         id: target
         run: |
@@ -42,11 +39,21 @@ jobs:
           if [ "$REF_NAME" = "main" ]; then
             echo "dest=" >> "$GITHUB_OUTPUT"
             echo "url=https://knybbe.github.io/paint.web/" >> "$GITHUB_OUTPUT"
+            echo "is_preview=false" >> "$GITHUB_OUTPUT"
           else
             SAFE_NAME=$(echo "$REF_NAME" | sed 's/[^a-zA-Z0-9._-]/-/g')
             echo "dest=$SAFE_NAME" >> "$GITHUB_OUTPUT"
             echo "url=https://knybbe.github.io/paint.web/$SAFE_NAME/" >> "$GITHUB_OUTPUT"
+            echo "is_preview=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Build
+        run: |
+          if [ "${{ steps.target.outputs.is_preview }}" = "true" ]; then
+            export VITE_DISABLE_SW=true
+          fi
+          npm run build
+          touch dist/.nojekyll
 
       - uses: peaceiris/actions-gh-pages@v4
         with:

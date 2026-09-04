@@ -944,7 +944,8 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   }
 
   /* Hide Desktop Chrome */
-  .desktop-ribbon-host {
+  .desktop-ribbon-host,
+  .ribbon-bar {
     display: none !important;
   }
   .dock.left,

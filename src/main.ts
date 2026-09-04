@@ -49,15 +49,26 @@ if ("launchQueue" in window) {
   });
 }
 
-registerSW({
-  immediate: true,
-  onRegisteredSW() {
-    app.statusMessage = "Offline-ready";
-    app.notify("status");
-  },
-  onOfflineReady() {
-    app.statusMessage = "Ready to work offline";
-    app.notify("status");
-  },
-});
+const isPreviewPath =
+  window.location.pathname.includes("/paint.web/") &&
+  window.location.pathname !== "/paint.web/" &&
+  window.location.pathname !== "/paint.web/index.html";
+
+if (!isPreviewPath && !import.meta.env.VITE_DISABLE_SW) {
+  registerSW({
+    immediate: true,
+    onRegisteredSW() {
+      app.statusMessage = "Offline-ready";
+      app.notify("status");
+    },
+    onOfflineReady() {
+      app.statusMessage = "Ready to work offline";
+      app.notify("status");
+    },
+  });
+} else if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) void reg.unregister();
+  });
+}
 

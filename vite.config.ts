@@ -8,17 +8,24 @@ export default defineConfig({
   },
   plugins: [
     VitePWA({
+      disable: process.env.VITE_DISABLE_SW === "true",
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons/*.png", "icons/*.svg"],
       manifest: false,
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest,woff,woff2,json}"],
         navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/paint\.web\/(?!($|index\.html))/],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: ({ request }) => request.mode === "navigate",
-            handler: "CacheFirst",
+            urlPattern: ({ request, url }) =>
+              request.mode === "navigate" &&
+              (url.pathname === "/paint.web/" ||
+                url.pathname === "/paint.web/index.html" ||
+                url.pathname === "/" ||
+                url.pathname === "/index.html"),
+            handler: "NetworkFirst",
             options: {
               cacheName: "paint-web-pages",
             },
