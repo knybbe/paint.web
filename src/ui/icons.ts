@@ -216,6 +216,63 @@ export const UI_ICONS: Record<string, string> = {
     `<circle cx="10" cy="10" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
      <path d="M7 10h6M14.8 14.8L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
   ),
+  rotate: icon(
+    `<path d="M20 11a8 8 0 10-2.4 5.7M20 11V5M20 11h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+  ),
+  flip: icon(
+    `<path d="M12 3v18M18 17l-4-5 4-5M6 17l4-5-4-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+  ),
+  resize: icon(
+    `<rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+     <path d="M9 15l6-6M15 13.5V9h-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+  ),
+  fx: icon(
+    `<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z" fill="#facc15" stroke="#ca8a04" stroke-width="1.2"/>
+     <path d="M18 16l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="#60a5fa" stroke="#2563eb" stroke-width="0.8"/>`,
+  ),
+  palette: icon(
+    `<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+     <circle cx="8" cy="10" r="1.5" fill="#ef4444"/>
+     <circle cx="12" cy="7.5" r="1.5" fill="#3b82f6"/>
+     <circle cx="16" cy="10" r="1.5" fill="#22c55e"/>
+     <circle cx="14" cy="15" r="1.5" fill="#eab308"/>`,
+  ),
+  layers: icon(
+    `<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+  ),
+  more: icon(
+    `<circle cx="6" cy="12" r="1.8" fill="currentColor"/>
+     <circle cx="12" cy="12" r="1.8" fill="currentColor"/>
+     <circle cx="18" cy="12" r="1.8" fill="currentColor"/>`,
+  ),
+  settings: icon(
+    `<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.6"/>`,
+  ),
+  sun: icon(
+    `<circle cx="12" cy="12" r="4.5" fill="#facc15" stroke="#ca8a04" stroke-width="1.2"/>
+     <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`,
+  ),
+  moon: icon(
+    `<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" fill="#93c5fd" stroke="#2563eb" stroke-width="1.4"/>`,
+  ),
+  deselect: icon(
+    `<rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+     <path d="M7 7l10 10" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>`,
+  ),
+  grid: icon(
+    `<rect x="3" y="3" width="18" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+     <path d="M9 3v18M15 3v18M3 9h18M3 15h18" stroke="currentColor" stroke-width="1.2"/>`,
+  ),
+  ruler: icon(
+    `<rect x="2" y="7" width="20" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+     <path d="M6 7v4M10 7v3M14 7v4M18 7v3" stroke="currentColor" stroke-width="1.4"/>`,
+  ),
+  history: icon(
+    `<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+     <path d="M12 7v5l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+     <path d="M4.5 9L3 5h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`,
+  ),
 };
 
 export function svgEl(svg: string, className?: string): HTMLElement {

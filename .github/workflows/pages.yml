@@ -2,15 +2,19 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches-ignore:
+      - 'gh-pages'
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -25,8 +29,63 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: touch dist/.nojekyll
+
+      - name: Determine deployment directory
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF_NAME="${{ github.head_ref }}"
+          else
+            REF_NAME="${{ github.ref_name }}"
+          fi
+
+          if [ "$REF_NAME" = "main" ]; then
+            echo "dest=" >> "$GITHUB_OUTPUT"
+            echo "url=https://knybbe.github.io/paint.web/" >> "$GITHUB_OUTPUT"
+          else
+            SAFE_NAME=$(echo "$REF_NAME" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            echo "dest=$SAFE_NAME" >> "$GITHUB_OUTPUT"
+            echo "url=https://knybbe.github.io/paint.web/$SAFE_NAME/" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          force_orphan: true
+          destination_dir: ${{ steps.target.outputs.dest }}
+          keep_files: true
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "Access the app at: [${{ steps.target.outputs.url }}](${{ steps.target.outputs.url }})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Post preview comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref.replace(/[^a-zA-Z0-9._-]/g, '-');
+            const url = `https://knybbe.github.io/paint.web/${branch}/`;
+            const body = `### 🎨 Preview Deployed!\n\n**Preview URL:** [${url}](${url})\n\n_Built from commit ${context.sha.substring(0, 7)}_`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes('Preview Deployed!'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
