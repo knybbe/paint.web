@@ -71,4 +71,3 @@ if (!isPreviewPath && !import.meta.env.VITE_DISABLE_SW) {
     for (const reg of regs) void reg.unregister();
   });
 }
-

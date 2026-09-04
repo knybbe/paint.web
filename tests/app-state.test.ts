@@ -36,4 +36,13 @@ describe("AppState integration", () => {
     expect(app.document.layers).toHaveLength(1);
     expect(app.document.composite().getPixel(0, 0).g).toBe(128);
   });
+
+  it("bumps revision on notify", async () => {
+    const app = new AppState();
+    await app.init();
+    const start = app.revision;
+    expect(start).toBeGreaterThan(0);
+    app.notify("status");
+    expect(app.revision).toBe(start + 1);
+  });
 });

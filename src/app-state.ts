@@ -81,6 +81,7 @@ export class AppState extends EventTarget {
   lastEffect: { id: string; params: Record<string, number | boolean | string> } | null = null;
   recent: RecentFile[] = [];
   dialog: DialogState | null = null;
+  revision = 0;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private restoring = false;
 
@@ -109,6 +110,7 @@ export class AppState extends EventTarget {
   }
 
   notify(type: string): void {
+    this.revision++;
     this.dispatchEvent(new Event(type));
     if (
       !this.restoring &&

@@ -1,3 +1,5 @@
+@import "./tailwind.css";
+
 :root,
 [data-theme="dark"] {
   --pdn-bg: #2b2b2b;
@@ -61,6 +63,32 @@
   --pdn-radius-pill: 9999px;
   --pdn-font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans", Roboto, system-ui, sans-serif;
   color-scheme: light;
+}
+
+/* shadcn tokens follow existing --pdn-* colors (dark default, light override). */
+:root,
+[data-theme="dark"],
+[data-theme="light"] {
+  --radius: 0.3rem;
+  --background: var(--pdn-bg);
+  --foreground: var(--pdn-text);
+  --card: var(--pdn-window);
+  --card-foreground: var(--pdn-text);
+  --popover: var(--pdn-menu);
+  --popover-foreground: var(--pdn-text);
+  --primary: var(--pdn-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--pdn-bg-3);
+  --secondary-foreground: var(--pdn-text);
+  --muted: var(--pdn-bg-2);
+  --muted-foreground: var(--pdn-text-dim);
+  --accent: var(--pdn-accent);
+  --accent-foreground: #ffffff;
+  --destructive: var(--pdn-danger);
+  --border: var(--pdn-border);
+  --input: var(--pdn-input);
+  --ring: var(--pdn-accent);
+  --workspace: var(--pdn-workspace);
 }
 
 * { box-sizing: border-box; }
