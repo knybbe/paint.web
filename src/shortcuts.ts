@@ -16,6 +16,8 @@ export function bindShortcuts(app: AppState): void {
       toggleCommandPalette();
       return;
     }
+    // Radix dismisses the palette on document capture (preventDefault, no stopPropagation).
+    if (e.defaultPrevented) return;
     if (isCommandPaletteOpen()) return;
 
     const t = e.target as HTMLElement | null;

@@ -14,11 +14,23 @@ import {
 } from "@/ui/react/components/ui/command";
 
 let paletteOpen = false;
+/** Stays true through the rest of the keydown that dismissed the palette (Radix capture vs window bubble). */
+let suppressAppShortcuts = false;
 let setPaletteOpen: Dispatch<SetStateAction<boolean>> | null = null;
 let reactRoot: Root | null = null;
 
+function notePaletteOpen(next: boolean): void {
+  if (paletteOpen && !next) {
+    suppressAppShortcuts = true;
+    queueMicrotask(() => {
+      suppressAppShortcuts = false;
+    });
+  }
+  paletteOpen = next;
+}
+
 export function isCommandPaletteOpen(): boolean {
-  return paletteOpen;
+  return paletteOpen || suppressAppShortcuts;
 }
 
 export function openCommandPalette(): void {
@@ -82,13 +94,21 @@ function CommandPalette({
 
 function PaletteRoot({ app }: { app: AppState }) {
   const [open, setOpen] = useState(false);
-  paletteOpen = open;
+  notePaletteOpen(open);
 
   useEffect(() => {
-    setPaletteOpen = setOpen;
+    const apply: Dispatch<SetStateAction<boolean>> = (action) => {
+      setOpen((prev) => {
+        const next = typeof action === "function" ? action(prev) : action;
+        notePaletteOpen(next);
+        return next;
+      });
+    };
+    setPaletteOpen = apply;
     return () => {
-      if (setPaletteOpen === setOpen) setPaletteOpen = null;
+      if (setPaletteOpen === apply) setPaletteOpen = null;
       paletteOpen = false;
+      suppressAppShortcuts = false;
     };
   }, []);
 
@@ -97,7 +117,7 @@ function PaletteRoot({ app }: { app: AppState }) {
       app={app}
       open={open}
       onOpenChange={(next) => {
-        paletteOpen = next;
+        notePaletteOpen(next);
         setOpen(next);
       }}
     />
