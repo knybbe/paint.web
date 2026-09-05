@@ -40,6 +40,7 @@ import { PixelBuffer } from "./core/pixel-buffer";
 import { Colors } from "./core/color";
 import { Layer } from "./core/layer";
 import type { BlendMode } from "./core/blend";
+import { getChromePhase, setTabletInspectorPane } from "./ui/chrome-phase";
 import { DEFAULT_TOOL_OPTIONS, nextInCycle, MOVE_CYCLE, SELECT_CYCLE, SHAPE_CYCLE, type ToolContext, type ToolId, type ToolOptions } from "./tools/base";
 import { getTool } from "./tools/registry";
 import type { EffectDef } from "./effects/base";
@@ -1057,6 +1058,11 @@ export class AppState extends EventTarget {
   }
 
   toggleWindow(name: keyof AppState["windows"]): void {
+    if (getChromePhase() === "tablet" && name !== "tools") {
+      const turningOn = !this.windows[name];
+      setTabletInspectorPane(this, turningOn ? name : null);
+      return;
+    }
     this.windows[name] = !this.windows[name];
     this.notify("windows");
   }

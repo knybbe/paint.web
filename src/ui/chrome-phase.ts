@@ -68,18 +68,31 @@ export function useChromeSnapshot(): ChromeSnap {
   return useSyncExternalStore(subscribeChrome, getChromeSnapshot, getChromeSnapshot);
 }
 
-function syncTabletWindows(app: AppState): void {
-  const order = ["layers", "colors", "history"] as const;
-  const first = order.find((k) => app.windows[k]);
+export const TABLET_INSPECTOR_PANES = ["layers", "colors", "history"] as const;
+export type TabletInspectorPane = (typeof TABLET_INSPECTOR_PANES)[number];
+
+export function tabletInspectorPane(app: AppState): TabletInspectorPane | null {
+  for (const k of TABLET_INSPECTOR_PANES) {
+    if (app.windows[k]) return k;
+  }
+  return null;
+}
+
+/** Show one Layers/Color/History pane, or none. Used on tablet so the drawer never stacks. */
+export function setTabletInspectorPane(app: AppState, pane: TabletInspectorPane | null): void {
   let changed = false;
-  for (const k of order) {
-    const next = k === first;
+  for (const k of TABLET_INSPECTOR_PANES) {
+    const next = k === pane;
     if (app.windows[k] !== next) {
       app.windows[k] = next;
       changed = true;
     }
   }
   if (changed) app.notify("windows");
+}
+
+function syncTabletWindows(app: AppState): void {
+  setTabletInspectorPane(app, tabletInspectorPane(app));
 }
 
 function syncFingerMode(app: AppState, phase: ChromePhase): void {

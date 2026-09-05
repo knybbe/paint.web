@@ -1,5 +1,5 @@
 import type { AppState } from "../app-state";
-import { bindChromePhase } from "./chrome-phase";
+import { bindChromePhase, tabletInspectorPane } from "./chrome-phase";
 import { mountCanvas } from "./canvas-view";
 import { mountStatus } from "./windows";
 import { mountAdaptiveDock } from "./dock";
@@ -68,9 +68,10 @@ export function mountShell(root: HTMLElement, app: AppState): void {
     workspace.classList.toggle("no-left-dock", !leftVisible);
     right.classList.toggle("collapsed", !rightVisible);
     workspace.classList.toggle("no-right-dock", !rightVisible);
-    layersHost.classList.toggle("tablet-active", app.windows.layers);
-    colorsHost.classList.toggle("tablet-active", app.windows.colors);
-    historyHost.classList.toggle("tablet-active", app.windows.history);
+    const pane = tabletInspectorPane(app);
+    layersHost.classList.toggle("tablet-active", pane === "layers");
+    colorsHost.classList.toggle("tablet-active", pane === "colors");
+    historyHost.classList.toggle("tablet-active", pane === "history");
   };
   updateDocks();
   app.addEventListener("windows", updateDocks);

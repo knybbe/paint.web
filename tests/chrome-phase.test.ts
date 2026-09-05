@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { AppState } from "../src/app-state";
 import { applyChromePhase, chromePhase } from "../src/ui/chrome-phase";
 
 type MediaQueryListStub = {
@@ -74,5 +75,23 @@ describe("chromePhase", () => {
     expect(applyChromePhase()).toBe("phone");
     expect(document.documentElement.dataset.chrome).toBe("phone");
     expect(document.documentElement.dataset.pointer).toBe("coarse");
+  });
+
+  it("keeps a single tablet inspector pane when Window shortcuts toggle panels", () => {
+    stubViewport(768, 1024, true);
+    const app = new AppState();
+    app.windows = { tools: true, history: true, layers: true, colors: true };
+    applyChromePhase(window, app);
+    expect(chromePhase()).toBe("tablet");
+    expect(app.windows).toMatchObject({ layers: true, colors: false, history: false });
+
+    app.toggleWindow("colors");
+    expect(app.windows).toMatchObject({ layers: false, colors: true, history: false });
+
+    app.toggleWindow("history");
+    expect(app.windows).toMatchObject({ layers: false, colors: false, history: true });
+
+    app.toggleWindow("history");
+    expect(app.windows).toMatchObject({ layers: false, colors: false, history: false });
   });
 });
