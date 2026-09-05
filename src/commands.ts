@@ -2,6 +2,7 @@ import type { AppState } from "./app-state";
 import { ALL_TOOLS } from "./tools/registry";
 import { ALL_EFFECTS, getEffect } from "./effects/registry";
 import { paramMap } from "./effects/base";
+import { cycleThemePref } from "./core/theme";
 
 export type CommandGroup = "file" | "edit" | "image" | "adjust" | "effects" | "view" | "window" | "tools" | "help";
 
@@ -120,10 +121,10 @@ const FILE_EDIT_IMAGE: Command[] = [
   },
   {
     id: "view.theme",
-    label: "Toggle Theme",
+    label: "Cycle Theme",
     group: "view",
     run: (app) => {
-      app.settings.theme = app.settings.theme === "dark" ? "light" : "dark";
+      app.settings.theme = cycleThemePref(app.settings.theme);
       app.applyTheme();
       void app.persistSettings();
     },

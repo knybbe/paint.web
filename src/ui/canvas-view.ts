@@ -316,15 +316,8 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
     e.preventDefault();
     const r = host.getBoundingClientRect();
     const around = { x: e.clientX - r.left, y: e.clientY - r.top };
-    if (e.ctrlKey || e.metaKey) {
-      app.viewport.zoomByFactor(zoomFactorFromWheel(e.deltaY, e.deltaMode), around);
-    } else if (e.shiftKey) {
-      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      app.viewport.pan(-dy, 0);
-    } else {
-      const sx = e.deltaMode === 1 ? 16 : 1;
-      app.viewport.pan(-e.deltaX * sx, -e.deltaY * sx);
-    }
+    // Wheel and trackpad always zoom (including mobile mice). Pan is drag / space / two-finger pinch-pan.
+    app.viewport.zoomByFactor(zoomFactorFromWheel(e.deltaY, e.deltaMode), around);
     app.notify("viewport");
   }, { passive: false });
 

@@ -1,10 +1,38 @@
 import { clamp, type Point, type Rect } from "./geometry";
 
-export const MIN_ZOOM = 0.1;
-export const MAX_ZOOM = 32;
+/** 1% … 2000%. Slider midpoint is 100%. */
+export const MIN_ZOOM = 0.01;
+export const MAX_ZOOM = 20;
 export const ZOOM_STEPS = [
-  0.1, 0.125, 0.1667, 0.25, 0.333, 0.5, 0.666, 1, 1.5, 2, 3, 4, 5, 6, 8, 12, 16, 24, 32,
+  0.01, 0.02, 0.05, 0.1, 0.125, 0.1667, 0.25, 0.333, 0.5, 0.666, 1, 1.5, 2, 3, 4, 5, 6, 8, 12, 16, 20,
 ];
+
+/** Discrete slider domain: 0–500 = 1%–100%, 500–1000 = 100%–2000%. */
+export const ZOOM_SLIDER_MAX = 1000;
+const ZOOM_SLIDER_MID = ZOOM_SLIDER_MAX / 2;
+const ZOOM_PCT_MIN = MIN_ZOOM * 100;
+const ZOOM_PCT_MID = 100;
+const ZOOM_PCT_MAX = MAX_ZOOM * 100;
+
+/** Map a zoom factor to the split size-slider position (0…1000). */
+export function zoomToSlider(zoom: number): number {
+  const pct = clamp(zoom * 100, ZOOM_PCT_MIN, ZOOM_PCT_MAX);
+  if (pct <= ZOOM_PCT_MID) {
+    return ((pct - ZOOM_PCT_MIN) / (ZOOM_PCT_MID - ZOOM_PCT_MIN)) * ZOOM_SLIDER_MID;
+  }
+  return ZOOM_SLIDER_MID + ((pct - ZOOM_PCT_MID) / (ZOOM_PCT_MAX - ZOOM_PCT_MID)) * ZOOM_SLIDER_MID;
+}
+
+/** Map a split size-slider position (0…1000) back to a zoom factor. */
+export function sliderToZoom(pos: number): number {
+  const t = clamp(pos, 0, ZOOM_SLIDER_MAX);
+  if (t <= ZOOM_SLIDER_MID) {
+    const pct = ZOOM_PCT_MIN + (t / ZOOM_SLIDER_MID) * (ZOOM_PCT_MID - ZOOM_PCT_MIN);
+    return pct / 100;
+  }
+  const pct = ZOOM_PCT_MID + ((t - ZOOM_SLIDER_MID) / ZOOM_SLIDER_MID) * (ZOOM_PCT_MAX - ZOOM_PCT_MID);
+  return pct / 100;
+}
 
 export class Viewport {
   zoom = 1;

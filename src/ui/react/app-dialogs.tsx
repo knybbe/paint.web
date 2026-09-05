@@ -33,9 +33,9 @@ import { Slider } from "@/ui/react/components/ui/slider";
 import { useAppEvent } from "@/ui/react/use-app";
 
 const DIALOG_BOX =
-  "pdn-dialog flex flex-col gap-0 p-0 rounded-[4px] sm:max-w-[380px] bg-[var(--pdn-window)] shadow-[var(--pdn-shadow)] overflow-hidden";
-const BTN = "h-7 min-w-[74px] rounded-[4px] px-3 text-[12px]";
-const INP = "h-7 rounded-[4px] px-2 text-[12px] shadow-none";
+  "pdn-dialog flex flex-col gap-0 p-0 rounded-xl sm:max-w-[380px] bg-card shadow-[var(--pdn-shadow)] overflow-hidden";
+const BTN = "h-8 min-w-[74px] rounded-md px-3 text-sm font-semibold";
+const INP = "h-8 min-h-8 rounded-md px-3 text-sm shadow-none";
 const SELECT_CONTENT = "desktop-menu-content";
 
 function isSelectEventTarget(target: EventTarget | null): boolean {
@@ -527,15 +527,18 @@ function SettingsDialog({ app }: { app: AppState }) {
       <FormGrid>
         <Field label="Theme">
           <Select value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
-            <SelectTrigger size="sm" className="h-7 min-h-7 rounded-[4px] px-2 text-[12px] shadow-none">
+            <SelectTrigger size="sm" className="h-8 min-h-8 rounded-md px-3 text-sm shadow-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className={SELECT_CONTENT}>
-              <SelectItem value="dark" className="text-[12px]">
-                Dark
+              <SelectItem value="system" className="text-sm">
+                System
               </SelectItem>
-              <SelectItem value="light" className="text-[12px]">
+              <SelectItem value="light" className="text-sm">
                 Light
+              </SelectItem>
+              <SelectItem value="dark" className="text-sm">
+                Dark
               </SelectItem>
             </SelectContent>
           </Select>
@@ -582,7 +585,7 @@ function ShortcutsDialog({ app }: { app: AppState }) {
           <b>Ctrl+N/O/S</b> new/open/save · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
         </li>
         <li>
-          <b>Space+drag</b> pan · <b>Ctrl+wheel / pinch</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> fit to view
+          <b>Space+drag</b> pan · <b>Wheel / pinch</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> fit to view
         </li>
       </ul>
     </AppDialogShell>

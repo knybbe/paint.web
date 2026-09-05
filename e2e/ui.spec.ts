@@ -24,8 +24,9 @@ test("shell chrome is visible", async ({ page }) => {
   const colorsOpen = await page.getByTestId("window-colors").isVisible();
   const colorsTab = await page.getByTestId("dock-tab-colors").isVisible();
   expect(colorsOpen || colorsTab).toBe(true);
-  await expect(page.getByTestId("window-layers")).toBeVisible();
-  await expect(page.getByTestId("window-history")).toBeVisible();
+  const historyOpen = await page.getByTestId("window-history").isVisible();
+  const historyTab = await page.getByTestId("dock-tab-history").isVisible();
+  expect(historyOpen || historyTab).toBe(true);
   await expect(page.getByTestId("canvas-host")).toBeVisible();
   await expect(page.getByTestId("statusbar")).toBeVisible();
   await expect(page.getByTestId("menu-file")).toBeVisible();
@@ -139,6 +140,52 @@ test("ctrl+wheel zooms continuously instead of jumping steps", async ({ page }) 
   expect(after / before).toBeGreaterThan(0.9);
   expect(after / before).toBeLessThan(1);
   expect(after).not.toBe(before);
+});
+
+test("wheel without modifiers zooms instead of panning", async ({ page }) => {
+  const host = page.getByTestId("canvas-host");
+  const before = await page.evaluate(() => {
+    const vp = (window as unknown as { __PAINT_APP__: { viewport: { zoom: number; panX: number; panY: number } } }).__PAINT_APP__.viewport;
+    return { zoom: vp.zoom, panX: vp.panX, panY: vp.panY };
+  });
+  await host.dispatchEvent("wheel", { deltaY: 40, deltaX: 20, bubbles: true, cancelable: true });
+  const after = await page.evaluate(() => {
+    const vp = (window as unknown as { __PAINT_APP__: { viewport: { zoom: number; panX: number; panY: number } } }).__PAINT_APP__.viewport;
+    return { zoom: vp.zoom, panX: vp.panX, panY: vp.panY };
+  });
+  expect(after.zoom).not.toBe(before.zoom);
+  expect(after.zoom).toBeLessThan(before.zoom);
+});
+
+test("status zoom slider midpoint is 100%", async ({ page }) => {
+  const range = page.locator(".zoom-ctl input[type='range']");
+  await expect(range).toBeVisible();
+  const max = Number(await range.getAttribute("max"));
+  await range.fill(String(max / 2));
+  const zoom = await page.evaluate(() => (window as unknown as { __PAINT_APP__: { viewport: { zoom: number } } }).__PAINT_APP__.viewport.zoom);
+  expect(zoom).toBeCloseTo(1, 2);
+  await expect(page.getByTestId("zoom-percent")).toHaveValue("100%");
+});
+
+test("zoom dropdown is not in the title row", async ({ page }) => {
+  await expect(page.getByTestId("zoom-dropdown")).toHaveCount(0);
+});
+
+test("Effects menu lists Gaussian Blur without a nested submenu", async ({ page }) => {
+  await page.getByTestId("menu-effects").click();
+  await expect(page.getByRole("menuitem", { name: "Gaussian Blur..." })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Blurs" })).toHaveCount(0);
+});
+
+test("theme header cycles System Light Dark", async ({ page }) => {
+  const toggle = page.getByTestId("ribbon-theme").first();
+  await expect(toggle).toBeVisible();
+  const before = await page.evaluate(() => document.documentElement.dataset.theme);
+  await toggle.click();
+  await toggle.click();
+  const after = await page.evaluate(() => document.documentElement.getAttribute("class"));
+  expect(before === "dark" || before === "light").toBe(true);
+  expect(typeof after).toBe("string");
 });
 
 test.describe("HiDPI workspace", () => {

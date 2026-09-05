@@ -515,15 +515,7 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
     {
       title: "View & Settings",
       items: [
-        {
-          label: `${app.settings.theme === "dark" ? "Light" : "Dark"} Mode`,
-          icon: app.settings.theme === "dark" ? UI_ICONS.sun : UI_ICONS.moon,
-          action: () => {
-            app.settings.theme = app.settings.theme === "dark" ? "light" : "dark";
-            app.applyTheme();
-            void app.persistSettings();
-          },
-        },
+        { label: "Settings", icon: UI_ICONS.settings, action: () => app.openDialog({ type: "settings" }) },
         { label: "Keyboard Shortcuts", icon: UI_ICONS.settings, action: () => app.openDialog({ type: "shortcuts" }) },
         { label: "About paint.web", icon: UI_ICONS.more, action: () => app.openDialog({ type: "about" }) },
       ],

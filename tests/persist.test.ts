@@ -53,7 +53,7 @@ describe("workspace persistence", () => {
   it("restoreViewport clamps zoom below the floor", () => {
     const vp = new Viewport();
     restoreViewport(vp, {
-      zoom: 0.02,
+      zoom: 0.001,
       panX: 12,
       panY: 34,
       showRulers: false,

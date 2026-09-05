@@ -7,6 +7,7 @@ import { contextChipLabel, mobileSheetTitle, renderMobileSheetBody, type MobileS
 import { useChromeSnapshot } from "@/ui/chrome-phase";
 import { useAppEvents } from "@/ui/react/use-app";
 import { Sheet, SheetContent, SheetTitle } from "@/ui/react/components/ui/sheet";
+import { ThemeToggle } from "@/ui/react/theme-toggle";
 
 let phoneRoot: Root | null = null;
 
@@ -92,6 +93,7 @@ function PhoneChrome({ app }: { app: AppState }) {
           <button type="button" className="mobile-action-btn" title="Fit" data-testid="mobile-top-fit" onClick={() => app.fitToView()}>
             <SvgIcon svg={UI_ICONS.fit} />
           </button>
+          <ThemeToggle app={app} className="mobile-action-btn" />
           <button type="button" className="mobile-action-btn" title="Save" data-testid="mobile-top-save" onClick={() => void app.save(false)}>
             <SvgIcon svg={UI_ICONS.save} />
           </button>

@@ -13,13 +13,6 @@ import { useAppEvents } from "@/ui/react/use-app";
 import { Button } from "@/ui/react/components/ui/button";
 import { Checkbox } from "@/ui/react/components/ui/checkbox";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/ui/react/components/ui/dropdown-menu";
-import {
   Menubar,
   MenubarCheckboxItem,
   MenubarContent,
@@ -27,16 +20,13 @@ import {
   MenubarMenu,
   MenubarSeparator,
   MenubarShortcut,
-  MenubarSub,
-  MenubarSubContent,
-  MenubarSubTrigger,
   MenubarTrigger,
 } from "@/ui/react/components/ui/menubar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/react/components/ui/select";
 import { Separator } from "@/ui/react/components/ui/separator";
 import { Slider } from "@/ui/react/components/ui/slider";
-import { Toggle } from "@/ui/react/components/ui/toggle";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/ui/react/components/ui/tooltip";
+import { ThemeToggle } from "@/ui/react/theme-toggle";
 
 const MENU_GROUPS: CommandGroup[] = ["file", "edit", "image", "adjust", "effects", "view", "window", "help"];
 const MENU_LABELS: Record<CommandGroup, string> = {
@@ -60,19 +50,6 @@ const RAIL_GROUPS: { title: string; tools: ToolId[] }[] = [
   { title: "Fill", tools: ["paintBucket", "gradient", "colorPicker"] },
   { title: "Shapes", tools: ["rectangle", "roundedRectangle", "ellipse", "freeform"] },
   { title: "View", tools: ["zoom", "pan"] },
-];
-
-const ZOOM_PRESETS: { label: string; kind: "zoom" | "fit" | "actual"; zoom?: number }[] = [
-  { label: "10%", kind: "zoom", zoom: 0.1 },
-  { label: "12.5%", kind: "zoom", zoom: 0.125 },
-  { label: "25%", kind: "zoom", zoom: 0.25 },
-  { label: "50%", kind: "zoom", zoom: 0.5 },
-  { label: "66%", kind: "zoom", zoom: 0.66 },
-  { label: "100%", kind: "zoom", zoom: 1 },
-  { label: "200%", kind: "zoom", zoom: 2 },
-  { label: "400%", kind: "zoom", zoom: 4 },
-  { label: "Fit", kind: "fit" },
-  { label: "Actual", kind: "actual" },
 ];
 
 const WINDOW_KEYS: Record<string, keyof AppState["windows"]> = {
@@ -146,22 +123,22 @@ function CommandRow({ app, cmd }: { app: AppState; cmd: Command }) {
 function EffectsMenu({ app }: { app: AppState }) {
   return (
     <MenubarMenu>
-      <MenubarTrigger className="desktop-menu-trigger" data-testid="menu-effects">
+      <MenubarTrigger className="desktop-menu-trigger shadow-none outline-none focus-visible:ring-0" data-testid="menu-effects">
         Effects
       </MenubarTrigger>
-      <MenubarContent className="desktop-menu-content" align="start" sideOffset={0}>
-        {EFFECT_CATS.map((cat) => (
-          <MenubarSub key={cat}>
-            <MenubarSubTrigger>{cat}</MenubarSubTrigger>
-            <MenubarSubContent className="desktop-menu-content">
+      <MenubarContent className="desktop-menu-content effects-panel" align="start" sideOffset={4}>
+        <div className="effects-panel-grid">
+          {EFFECT_CATS.map((cat) => (
+            <div key={cat} className="effects-panel-col">
+              <div className="effects-panel-heading">{cat}</div>
               {effectsByMenu(cat).map((e) => {
                 const cmd = getCommand(`effect.${e.id}`);
                 if (!cmd) return null;
                 return <CommandRow key={cmd.id} app={app} cmd={cmd} />;
               })}
-            </MenubarSubContent>
-          </MenubarSub>
-        ))}
+            </div>
+          ))}
+        </div>
       </MenubarContent>
     </MenubarMenu>
   );
@@ -171,14 +148,14 @@ function AppMenubar({ app }: { app: AppState }) {
   useAppEvents(app, ["history", "selection", "layers", "windows", "viewport", "theme"]);
   const groups = commandsByGroup();
   return (
-    <Menubar className="desktop-menubar" data-testid="menubar">
+    <Menubar className="desktop-menubar border-0 shadow-none rounded-none" data-testid="menubar">
       {MENU_GROUPS.map((group) => {
         if (group === "effects") return <EffectsMenu key="effects" app={app} />;
         const g = groups.find((x) => x.group === group);
         if (!g) return null;
         return (
           <MenubarMenu key={group}>
-            <MenubarTrigger className="desktop-menu-trigger" data-testid={`menu-${group}`}>
+            <MenubarTrigger className="desktop-menu-trigger shadow-none outline-none focus-visible:ring-0" data-testid={`menu-${group}`}>
               {MENU_LABELS[group]}
             </MenubarTrigger>
             <MenubarContent className="desktop-menu-content" align="start" sideOffset={0}>
@@ -202,28 +179,9 @@ function AppMenubar({ app }: { app: AppState }) {
   );
 }
 
-function applyZoom(app: AppState, item: (typeof ZOOM_PRESETS)[number]): void {
-  if (item.kind === "fit") {
-    app.fitToView();
-    return;
-  }
-  if (item.kind === "actual") {
-    app.viewport.actualSize(app.document.width, app.document.height);
-    app.notify("viewport");
-    return;
-  }
-  app.viewport.setZoom(item.zoom ?? 1, {
-    x: app.viewport.viewWidth / 2,
-    y: app.viewport.viewHeight / 2,
-  });
-  app.notify("viewport");
-}
-
 function TitleRow({ app }: { app: AppState }) {
-  useAppEvents(app, ["history", "document", "viewport", "theme", "sessions", "tool"]);
+  useAppEvents(app, ["history", "document", "theme", "sessions", "tool"]);
   const phase = useChromePhase();
-  const zoomPct = Math.round(app.viewport.zoom * 100);
-  const dark = app.settings.theme === "dark";
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const iconSearch = phase !== "desktop";
   const fingerPan = app.options.touchFingerMode === "pan";
@@ -274,26 +232,6 @@ function TitleRow({ app }: { app: AppState }) {
       >
         {iconSearch ? <SvgIcon svg={UI_ICONS.search} /> : <>Search <kbd>{mac ? "⌘K" : "Ctrl+K"}</kbd></>}
       </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className="desktop-zoom-trigger" data-testid="zoom-dropdown" title="Zoom">
-            {zoomPct}% ▾
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="desktop-menu-content min-w-28">
-          {ZOOM_PRESETS.map((item, i) => (
-            <Fragment key={item.label}>
-              {item.kind !== "zoom" && ZOOM_PRESETS[i - 1]?.kind === "zoom" ? <DropdownMenuSeparator /> : null}
-              <DropdownMenuItem
-                data-testid={item.kind === "fit" ? "zoom-preset-fit" : undefined}
-                onSelect={() => applyZoom(app, item)}
-              >
-                {item.label}
-              </DropdownMenuItem>
-            </Fragment>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
       <button
         type="button"
         className="chrome-icon-btn"
@@ -317,19 +255,7 @@ function TitleRow({ app }: { app: AppState }) {
           <SvgIcon svg={fingerPan ? TOOL_SVG.pan : TOOL_SVG.paintbrush} />
         </button>
       ) : null}
-      <Toggle
-        pressed={dark}
-        title={`Switch to ${dark ? "Light" : "Dark"} theme`}
-        data-testid="ribbon-theme"
-        className="chrome-icon-btn data-[state=on]:bg-transparent"
-        onPressedChange={() => {
-          app.settings.theme = dark ? "light" : "dark";
-          app.applyTheme();
-          void app.persistSettings();
-        }}
-      >
-        <SvgIcon svg={dark ? UI_ICONS.sun : UI_ICONS.moon} />
-      </Toggle>
+      <ThemeToggle app={app} />
     </div>
   );
 }

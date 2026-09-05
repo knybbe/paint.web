@@ -5,6 +5,14 @@ import { Selection } from "./core/selection";
 import { Viewport } from "./core/viewport";
 import { Compositor } from "./core/renderer";
 import { DEFAULT_SETTINGS, PRIMARY_DEFAULT, SECONDARY_DEFAULT, type AppSettings } from "./core/settings";
+import {
+  applyDomTheme,
+  bindSystemTheme,
+  parseThemePref,
+  persistThemePref,
+  resolveTheme,
+  unbindSystemTheme,
+} from "./core/theme";
 import { idbGet, idbSet, pushRecentFile, type RecentFile } from "./core/idb";
 import {
   applyDocument,
@@ -134,7 +142,12 @@ export class AppState extends EventTarget {
     try {
       const stored = await idbGet<AppSettings>("settings", "app");
       if (stored) {
-        this.settings = { ...DEFAULT_SETTINGS, ...stored, palette: stored.palette ?? DEFAULT_SETTINGS.palette };
+        this.settings = {
+          ...DEFAULT_SETTINGS,
+          ...stored,
+          theme: parseThemePref(stored.theme),
+          palette: stored.palette ?? DEFAULT_SETTINGS.palette,
+        };
         this.options.antialias = this.settings.antialias;
       }
       this.recent = (await idbGet<RecentFile[]>("recent", "list")) ?? [];
@@ -152,13 +165,17 @@ export class AppState extends EventTarget {
   }
 
   applyTheme(): void {
-    document.documentElement.dataset.theme = this.settings.theme;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", this.settings.theme === "dark" ? "#2b2b2b" : "#d4d4d4");
+    const pref = parseThemePref(this.settings.theme);
+    this.settings.theme = pref;
+    applyDomTheme(resolveTheme(pref));
+    persistThemePref(pref);
+    if (pref === "system") bindSystemTheme(() => this.applyTheme());
+    else unbindSystemTheme();
     this.notify("theme");
   }
 
   async persistSettings(): Promise<void> {
+    persistThemePref(parseThemePref(this.settings.theme));
     try {
       await idbSet("settings", "app", this.settings);
     } catch {

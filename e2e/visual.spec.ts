@@ -31,7 +31,6 @@ test.describe("visual snapshots", () => {
 
   test("effects submenu", async ({ page }) => {
     await page.getByTestId("menu-effects").click();
-    await page.getByRole("menuitem", { name: "Blurs" }).hover();
     await expect(page.getByRole("menuitem", { name: "Gaussian Blur..." })).toBeVisible();
     await expect(page).toHaveScreenshot("effects-blurs.png");
   });

@@ -6,7 +6,7 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
 
-@custom-variant dark (&:is([data-theme="dark"] *));
+@custom-variant dark (&:is(.dark *, .dark, [data-theme="dark"] *));
 
 @theme inline {
   --font-sans: var(--pdn-font-ui);

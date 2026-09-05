@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { Viewport, zoomFactorFromWheel, ZOOM_STEPS } from "../src/core/viewport";
+import {
+  Viewport,
+  zoomFactorFromWheel,
+  zoomToSlider,
+  sliderToZoom,
+  ZOOM_STEPS,
+  ZOOM_SLIDER_MAX,
+  MIN_ZOOM,
+  MAX_ZOOM,
+} from "../src/core/viewport";
 
 describe("Viewport", () => {
   it("maps screen coordinates in CSS pixels", () => {
@@ -62,26 +71,39 @@ describe("Viewport", () => {
     expect(zoomFactorFromWheel(-400, 0)).toBe(1.15);
   });
 
-  it("clamps setZoom below the floor to 10%", () => {
+  it("clamps setZoom below the floor to 1%", () => {
     const vp = new Viewport();
-    vp.setZoom(0.05);
-    expect(vp.zoom).toBe(0.1);
+    vp.setZoom(0.001);
+    expect(vp.zoom).toBe(MIN_ZOOM);
   });
 
-  it("zoomOut floors at 10%", () => {
+  it("zoomOut floors at 1%", () => {
     const vp = new Viewport();
-    vp.setZoom(0.125);
+    vp.setZoom(0.02);
     vp.zoomOut();
-    expect(vp.zoom).toBe(0.1);
+    expect(vp.zoom).toBe(MIN_ZOOM);
     vp.zoomOut();
-    expect(vp.zoom).toBe(0.1);
+    expect(vp.zoom).toBe(MIN_ZOOM);
   });
 
-  it("fitToWindow of a huge document floors at 10%", () => {
+  it("fitToWindow of a huge document floors at 1%", () => {
     const vp = new Viewport();
     vp.viewWidth = 400;
     vp.viewHeight = 300;
-    vp.fitToWindow(10000, 10000);
-    expect(vp.zoom).toBe(0.1);
+    vp.fitToWindow(100000, 100000);
+    expect(vp.zoom).toBe(MIN_ZOOM);
+  });
+
+  it("size slider puts 100% at the midpoint, 1% on the left, 2000% on the right", () => {
+    expect(zoomToSlider(1)).toBeCloseTo(ZOOM_SLIDER_MAX / 2, 6);
+    expect(sliderToZoom(ZOOM_SLIDER_MAX / 2)).toBeCloseTo(1, 6);
+    expect(sliderToZoom(0)).toBeCloseTo(MIN_ZOOM, 6);
+    expect(sliderToZoom(ZOOM_SLIDER_MAX)).toBeCloseTo(MAX_ZOOM, 6);
+    expect(zoomToSlider(MIN_ZOOM)).toBeCloseTo(0, 6);
+    expect(zoomToSlider(MAX_ZOOM)).toBeCloseTo(ZOOM_SLIDER_MAX, 6);
+    // Left half is linear in percent from 1 to 100.
+    expect(sliderToZoom(ZOOM_SLIDER_MAX / 4)).toBeCloseTo(0.505, 3);
+    // Right half is linear in percent from 100 to 2000.
+    expect(sliderToZoom((ZOOM_SLIDER_MAX * 3) / 4)).toBeCloseTo(10.5, 3);
   });
 });

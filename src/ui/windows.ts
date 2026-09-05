@@ -1,5 +1,5 @@
 import type { AppState } from "../app-state";
-import { MIN_ZOOM, MAX_ZOOM } from "../core/viewport";
+import { ZOOM_SLIDER_MAX, sliderToZoom, zoomToSlider } from "../core/viewport";
 import { TOOL_LAYOUT } from "../tools/registry";
 import { getTool } from "../tools/registry";
 import { svgEl, TOOL_SVG, UI_ICONS } from "./icons";
@@ -74,15 +74,16 @@ export function mountStatus(root: HTMLElement, app: AppState): void {
   fit.addEventListener("click", () => app.fitToView());
   const range = document.createElement("input");
   range.type = "range";
-  range.min = String(Math.round(MIN_ZOOM * 100));
-  range.max = String(Math.round(MAX_ZOOM * 100));
-  range.title = "Zoom";
+  range.min = "0";
+  range.max = String(ZOOM_SLIDER_MAX);
+  range.step = "1";
+  range.title = "Zoom — 1% to 100% left of center, 100% to 2000% right";
   const txt = document.createElement("input");
   txt.type = "text";
   txt.dataset.testid = "zoom-percent";
   txt.title = "Zoom percent — double-click to fit";
   range.addEventListener("input", () => {
-    app.viewport.setZoom(Number(range.value) / 100, {
+    app.viewport.setZoom(sliderToZoom(Number(range.value)), {
       x: app.viewport.viewWidth / 2,
       y: app.viewport.viewHeight / 2,
     });
@@ -110,7 +111,7 @@ export function mountStatus(root: HTMLElement, app: AppState): void {
     c.textContent = sel ? `Selection: ${sel.w} × ${sel.h}` : "";
     d.textContent = app.statusMessage || getTool(app.currentTool).name;
     const zp = Math.round(app.viewport.zoom * 100);
-    if (document.activeElement !== range) range.value = String(zp);
+    if (document.activeElement !== range) range.value = String(Math.round(zoomToSlider(app.viewport.zoom)));
     if (document.activeElement !== txt) txt.value = `${zp}%`;
   };
   paint();
