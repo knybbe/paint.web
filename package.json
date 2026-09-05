@@ -1,6 +1,6 @@
 {
   "name": "paint.web",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Fully offline Paint.NET clone as a Progressive Web App",
   "type": "module",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-slot": "^1.3.3",
+    "@yearlylabs/local-sync": "file:vendor/local-sync",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

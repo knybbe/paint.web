@@ -41,6 +41,7 @@ const FILE_EDIT_IMAGE: Command[] = [
   { id: "file.open", label: "Open...", shortcut: "Ctrl+O", group: "file", run: (app) => void app.openFiles() },
   { id: "file.save", label: "Save", shortcut: "Ctrl+S", group: "file", run: (app) => void app.save(false) },
   { id: "file.saveAs", label: "Save As...", shortcut: "Ctrl+Shift+S", group: "file", run: (app) => void app.save(true) },
+  { id: "file.sync", label: "Folder Sync...", shortcut: "Ctrl+Shift+U", group: "file", run: (app) => app.openDialog({ type: "sync" }) },
   { id: "file.settings", label: "Settings...", shortcut: "Alt+X", group: "file", run: (app) => app.openDialog({ type: "settings" }) },
 
   { id: "edit.undo", label: "Undo", shortcut: "Ctrl+Z", group: "edit", run: (app) => app.undo(), enabled: (app) => app.history.canUndo },

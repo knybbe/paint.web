@@ -217,6 +217,15 @@ function TitleRow({ app }: { app: AppState }) {
         >
           <SvgIcon svg={UI_ICONS.save} />
         </button>
+        <button
+          type="button"
+          className="chrome-icon-btn"
+          title="Folder Sync (Ctrl+Shift+U)"
+          data-testid="ribbon-sync"
+          onClick={() => app.openDialog({ type: "sync" })}
+        >
+          <SvgIcon svg={UI_ICONS.sync} />
+        </button>
       </div>
       <Separator orientation="vertical" className="h-5" />
       <div className="desktop-session-name" title={app.document.name}>
