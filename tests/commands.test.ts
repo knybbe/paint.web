@@ -7,12 +7,16 @@ import { mountShell } from "../src/ui/shell";
 import { closeCommandPalette, mountCommandPalette, openCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
 import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
 import { unmountDockPanels } from "../src/ui/react/dock-panels";
+import { unmountPhoneChrome } from "../src/ui/react/phone-chrome";
+import { unmountTabletInspector } from "../src/ui/react/tablet-inspector";
 
 describe("command registry", () => {
   afterEach(() => {
     unmountCommandPalette();
     unmountDockPanels();
     unmountDesktopChrome();
+    unmountPhoneChrome();
+    unmountTabletInspector();
     document.body.innerHTML = "";
   });
 

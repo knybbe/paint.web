@@ -5,233 +5,49 @@ import { effectsByMenu } from "../effects/registry";
 import type { EffectDef } from "../effects/base";
 import { BLEND_MODES, type BlendMode } from "../core/blend";
 import { hsvToRgb, rgbToHsv, fromHex, cssRgba, type Color } from "../core/color";
+import { openCommandPalette } from "./react/command-palette";
 
 export type MobileSheet = "none" | "tools" | "toolOpts" | "color" | "layers" | "fx" | "more";
 
-export function mountMobileDeck(_root: HTMLElement, app: AppState): {
-  topBar: HTMLElement;
-  contextPill: HTMLElement;
-  deckBar: HTMLElement;
-  sheetHost: HTMLElement;
-  backdrop: HTMLElement;
-} {
-  let openSheet: MobileSheet = "none";
-
-  // 1. Mobile Top Bar
-  const topBar = document.createElement("header");
-  topBar.className = "mobile-top-bar";
-  topBar.dataset.testid = "mobile-top-bar";
-
-  const renderTopBar = () => {
-    topBar.replaceChildren();
-
-    const titleWrap = document.createElement("div");
-    titleWrap.className = "mobile-top-title";
-    titleWrap.textContent = app.document.name;
-
-    const actionsWrap = document.createElement("div");
-    actionsWrap.className = "mobile-top-actions";
-
-    const undoBtn = actionBtn(
-      UI_ICONS.undo,
-      "Undo",
-      () => app.undo(),
-      !app.history.canUndo,
-      "mobile-top-undo",
-    );
-    const redoBtn = actionBtn(
-      UI_ICONS.redo,
-      "Redo",
-      () => app.redo(),
-      !app.history.canRedo,
-      "mobile-top-redo",
-    );
-    const fitBtn = actionBtn(UI_ICONS.fit, "Fit", () => app.fitToView(), false, "mobile-top-fit");
-    const saveBtn = actionBtn(UI_ICONS.save, "Save", () => void app.save(false), false, "mobile-top-save");
-
-    actionsWrap.append(undoBtn, redoBtn, fitBtn, saveBtn);
-    topBar.append(titleWrap, actionsWrap);
+export function mobileSheetTitle(sheet: MobileSheet, app: AppState): string {
+  if (sheet === "toolOpts") return `${getTool(app.currentTool).name} Options`;
+  const titles: Record<MobileSheet, string> = {
+    none: "",
+    tools: "Select Tool",
+    toolOpts: "",
+    color: "Color Studio",
+    layers: "Layer Manager",
+    fx: "Adjustments & Effects",
+    more: "Commands & Settings",
   };
+  return titles[sheet];
+}
 
-  // 2. Floating Contextual Tool Pill
-  const contextPill = document.createElement("div");
-  contextPill.className = "mobile-context-pill";
-  contextPill.dataset.testid = "mobile-context-pill";
+export function contextChipLabel(app: AppState): string {
+  const curTool = getTool(app.currentTool);
+  let detail = "";
+  if (
+    ["paintbrush", "eraser", "pencil", "cloneStamp", "recolor", "lineCurve", "rectangle", "roundedRectangle", "ellipse", "freeform"].includes(
+      app.currentTool,
+    )
+  ) {
+    detail = `${app.options.brushWidth}px`;
+  } else if (["magicWand", "paintBucket"].includes(app.currentTool)) {
+    detail = `Tol: ${app.options.tolerance}%`;
+  } else if (app.currentTool === "text") {
+    detail = `${app.options.fontSize}pt`;
+  }
+  return detail ? `${curTool.name} (${detail})` : curTool.name;
+}
 
-  const renderContextPill = () => {
-    contextPill.replaceChildren();
-    const curTool = getTool(app.currentTool);
-
-    const pillBtn = document.createElement("button");
-    pillBtn.type = "button";
-    pillBtn.className = "context-pill-inner";
-    pillBtn.dataset.testid = "context-pill-btn";
-
-    const iconSpan = svgEl(TOOL_SVG[app.currentTool]);
-    const textSpan = document.createElement("span");
-    textSpan.className = "pill-label";
-
-    // Build concise label
-    let detail = "";
-    if (["paintbrush", "eraser", "pencil", "cloneStamp", "recolor", "lineCurve", "rectangle", "roundedRectangle", "ellipse", "freeform"].includes(app.currentTool)) {
-      detail = `${app.options.brushWidth}px`;
-    } else if (["magicWand", "paintBucket"].includes(app.currentTool)) {
-      detail = `Tol: ${app.options.tolerance}%`;
-    } else if (app.currentTool === "text") {
-      detail = `${app.options.fontSize}pt`;
-    }
-
-    textSpan.textContent = detail ? `${curTool.name} (${detail})` : curTool.name;
-    const arrowSpan = document.createElement("span");
-    arrowSpan.className = "pill-arrow";
-    arrowSpan.textContent = "⚙️";
-
-    pillBtn.append(iconSpan, textSpan, arrowSpan);
-    pillBtn.addEventListener("click", () => {
-      toggleSheet("toolOpts");
-    });
-
-    contextPill.append(pillBtn);
-  };
-
-  // 3. Bottom Command Deck Bar
-  const deckBar = document.createElement("nav");
-  deckBar.className = "mobile-command-deck";
-  deckBar.dataset.testid = "mobile-command-deck";
-
-  const renderDeckBar = () => {
-    deckBar.replaceChildren();
-
-    const items: { id: MobileSheet; label: string; icon: string; testid: string }[] = [
-      { id: "tools", label: "Tools", icon: TOOL_SVG[app.currentTool], testid: "mobile-tab-tools" },
-      { id: "color", label: "Color", icon: UI_ICONS.palette, testid: "mobile-tab-color" },
-      { id: "layers", label: "Layers", icon: UI_ICONS.layers, testid: "mobile-tab-layers" },
-      { id: "fx", label: "FX", icon: UI_ICONS.fx, testid: "mobile-tab-fx" },
-      { id: "more", label: "More", icon: UI_ICONS.more, testid: "mobile-tab-more" },
-    ];
-
-    for (const item of items) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = `deck-tab-btn ${openSheet === item.id ? "active" : ""}`;
-      btn.dataset.testid = item.testid;
-
-      btn.append(svgEl(item.icon));
-      const lbl = document.createElement("span");
-      lbl.className = "deck-tab-label";
-      lbl.textContent = item.label;
-      btn.append(lbl);
-
-      btn.addEventListener("click", () => {
-        toggleSheet(item.id);
-      });
-      deckBar.append(btn);
-    }
-  };
-
-  // 4. Action Sheet Container & Backdrop
-  const sheetHost = document.createElement("div");
-  sheetHost.className = "mobile-sheet-container";
-  sheetHost.dataset.testid = "mobile-sheet-container";
-
-  const backdrop = document.createElement("div");
-  backdrop.className = "mobile-sheet-backdrop";
-  backdrop.dataset.testid = "mobile-sheet-backdrop";
-
-  const closeCurrentSheet = () => {
-    openSheet = "none";
-    sheetHost.classList.remove("open");
-    backdrop.classList.remove("open");
-    sheetHost.replaceChildren();
-    renderDeckBar();
-  };
-
-  const toggleSheet = (sheet: MobileSheet) => {
-    if (openSheet === sheet) {
-      closeCurrentSheet();
-      return;
-    }
-    openSheet = sheet;
-    sheetHost.classList.add("open");
-    backdrop.classList.add("open");
-    renderSheetContent(sheet);
-    renderDeckBar();
-  };
-
-  const renderSheetContent = (sheet: MobileSheet) => {
-    sheetHost.replaceChildren();
-
-    // Handle bar
-    const handle = document.createElement("div");
-    handle.className = "sheet-drag-handle";
-
-    // Header with title and close
-    const header = document.createElement("div");
-    header.className = "sheet-header";
-
-    const titles: Record<MobileSheet, string> = {
-      none: "",
-      tools: "Select Tool",
-      toolOpts: `${getTool(app.currentTool).name} Options`,
-      color: "Color Studio",
-      layers: "Layer Manager",
-      fx: "Adjustments & Effects",
-      more: "Commands & Settings",
-    };
-
-    const title = document.createElement("h3");
-    title.className = "sheet-title";
-    title.textContent = titles[sheet];
-
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "sheet-close-btn";
-    closeBtn.textContent = "✕";
-    closeBtn.addEventListener("click", closeCurrentSheet);
-
-    header.append(title, closeBtn);
-
-    // Body
-    const body = document.createElement("div");
-    body.className = "sheet-body";
-
-    if (sheet === "tools") {
-      body.append(renderToolsSheet(app, () => closeCurrentSheet()));
-    } else if (sheet === "toolOpts") {
-      body.append(renderToolOptionsSheet(app, () => closeCurrentSheet()));
-    } else if (sheet === "color") {
-      body.append(renderColorSheet(app));
-    } else if (sheet === "layers") {
-      body.append(renderLayersSheet(app));
-    } else if (sheet === "fx") {
-      body.append(renderFxSheet(app, () => closeCurrentSheet()));
-    } else if (sheet === "more") {
-      body.append(renderMoreSheet(app, () => closeCurrentSheet()));
-    }
-
-    sheetHost.append(handle, header, body);
-  };
-
-  backdrop.addEventListener("click", closeCurrentSheet);
-
-  const updateAll = () => {
-    renderTopBar();
-    renderContextPill();
-    renderDeckBar();
-    if (openSheet !== "none") {
-      renderSheetContent(openSheet);
-    }
-  };
-
-  updateAll();
-  app.addEventListener("tool", updateAll);
-  app.addEventListener("history", updateAll);
-  app.addEventListener("selection", updateAll);
-  app.addEventListener("layers", updateAll);
-  app.addEventListener("colors", updateAll);
-  app.addEventListener("document", updateAll);
-
-  return { topBar, contextPill, deckBar, sheetHost, backdrop };
+export function renderMobileSheetBody(sheet: MobileSheet, app: AppState, onDone: () => void): HTMLElement {
+  if (sheet === "tools") return renderToolsSheet(app, onDone);
+  if (sheet === "toolOpts") return renderToolOptionsSheet(app, onDone);
+  if (sheet === "color") return renderColorSheet(app);
+  if (sheet === "layers") return renderLayersSheet(app);
+  if (sheet === "fx") return renderFxSheet(app, onDone);
+  if (sheet === "more") return renderMoreSheet(app, onDone);
+  return document.createElement("div");
 }
 
 // ---------------------------------------------
@@ -675,9 +491,11 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
     {
       title: "File Operations",
       items: [
-        { label: "New Document", icon: UI_ICONS.new, action: () => app.openDialog({ type: "new" }) },
-        { label: "Open Images", icon: UI_ICONS.open, action: () => void app.openFiles() },
-        { label: "Save Copy", icon: UI_ICONS.save, action: () => void app.save(true) },
+        { label: "Search commands", icon: UI_ICONS.search, action: () => openCommandPalette() },
+        { label: "New", icon: UI_ICONS.new, action: () => app.openDialog({ type: "new" }) },
+        { label: "Open", icon: UI_ICONS.open, action: () => void app.openFiles() },
+        { label: "Save", icon: UI_ICONS.save, action: () => void app.save(false) },
+        { label: "Save As", icon: UI_ICONS.save, action: () => void app.save(true) },
         { label: "Print", icon: UI_ICONS.save, action: () => app.print() },
       ],
     },
@@ -739,24 +557,27 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
     container.append(list);
   }
 
+  container.append(
+    touchSegmented(
+      "Finger on canvas",
+      [
+        { label: "Draw", value: "draw" },
+        { label: "Pan", value: "pan" },
+      ],
+      app.options.touchFingerMode,
+      (v) => {
+        app.options.touchFingerMode = v as "draw" | "pan";
+        app.notify("tool");
+      },
+    ),
+  );
+
   return container;
 }
 
 // ---------------------------------------------
 // TOUCH HELPERS
 // ---------------------------------------------
-
-function actionBtn(svg: string, label: string, on: () => void, disabled = false, testid?: string): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "mobile-action-btn";
-  b.title = label;
-  b.disabled = disabled;
-  if (testid) b.dataset.testid = testid;
-  b.append(svgEl(svg));
-  b.addEventListener("click", on);
-  return b;
-}
 
 function touchButton(label: string, on: () => void, primary = false): HTMLButtonElement {
   const b = document.createElement("button");

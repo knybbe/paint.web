@@ -6,6 +6,8 @@ import { bindShortcuts } from "../src/shortcuts";
 import { mountCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
 import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
 import { unmountDockPanels } from "../src/ui/react/dock-panels";
+import { unmountPhoneChrome } from "../src/ui/react/phone-chrome";
+import { unmountTabletInspector } from "../src/ui/react/tablet-inspector";
 import "../src/styles/app.css";
 
 async function mount(): Promise<AppState> {
@@ -37,6 +39,8 @@ describe("Desktop editor shell & mobile deck", () => {
     unmountCommandPalette();
     unmountDockPanels();
     unmountDesktopChrome();
+    unmountPhoneChrome();
+    unmountTabletInspector();
     document.body.innerHTML = "";
   });
 
@@ -167,48 +171,56 @@ describe("Desktop editor shell & mobile deck", () => {
     expect(document.querySelector('[data-testid="command-palette"]')).toBeTruthy();
   });
 
-  it("opens mobile tools sheet from command deck and selects a tool", () => {
-    const deckTools = document.querySelector('[data-testid="mobile-tab-tools"]');
-    click(deckTools);
+  it("opens mobile tools sheet from command deck and selects a tool", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="mobile-tab-tools"]'));
+    });
 
     const sheet = document.querySelector('[data-testid="mobile-sheet-container"]');
-    expect(sheet?.classList.contains("open")).toBe(true);
+    expect(sheet).toBeTruthy();
     expect(sheet?.textContent).toContain("Select Tool");
 
     const mobileLasso = document.querySelector('[data-testid="mobile-tool-lassoSelect"]');
     expect(mobileLasso).toBeTruthy();
-    click(mobileLasso);
+    await act(async () => {
+      click(mobileLasso);
+    });
 
     expect(app.currentTool).toBe("lassoSelect");
-    expect(sheet?.classList.contains("open")).toBe(false);
+    expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeNull();
   });
 
-  it("opens mobile layers sheet and adds a layer", () => {
+  it("opens mobile layers sheet and adds a layer", async () => {
     expect(app.document.layers).toHaveLength(1);
-    const deckLayers = document.querySelector('[data-testid="mobile-tab-layers"]');
-    click(deckLayers);
+    await act(async () => {
+      click(document.querySelector('[data-testid="mobile-tab-layers"]'));
+    });
 
     const sheet = document.querySelector('[data-testid="mobile-sheet-container"]');
-    expect(sheet?.classList.contains("open")).toBe(true);
+    expect(sheet).toBeTruthy();
 
     const addBtn = document.querySelector('[data-testid="mobile-layer-add"]');
     expect(addBtn).toBeTruthy();
-    click(addBtn);
+    await act(async () => {
+      click(addBtn);
+    });
 
     expect(app.document.layers).toHaveLength(2);
   });
 
-  it("opens mobile color studio sheet and dismisses via backdrop", () => {
-    const deckColor = document.querySelector('[data-testid="mobile-tab-color"]');
-    click(deckColor);
+  it("opens mobile color studio sheet and dismisses via backdrop", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="mobile-tab-color"]'));
+    });
 
-    const sheet = document.querySelector('[data-testid="mobile-sheet-container"]');
+    expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeTruthy();
     const backdrop = document.querySelector('[data-testid="mobile-sheet-backdrop"]');
-    expect(sheet?.classList.contains("open")).toBe(true);
-    expect(backdrop?.classList.contains("open")).toBe(true);
+    expect(backdrop).toBeTruthy();
 
-    click(backdrop);
-    expect(sheet?.classList.contains("open")).toBe(false);
-    expect(backdrop?.classList.contains("open")).toBe(false);
+    await act(async () => {
+      click(backdrop);
+    });
+    expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeNull();
+    expect(document.querySelector('[data-testid="mobile-sheet-backdrop"]')).toBeNull();
   });
 });

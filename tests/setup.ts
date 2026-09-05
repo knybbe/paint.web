@@ -9,9 +9,10 @@ class ResizeObserverStub {
 if (typeof globalThis.PointerEvent === "undefined") {
   class PointerEventPolyfill extends MouseEvent {
     pointerId: number;
-    constructor(type: string, props: MouseEventInit & { pointerId?: number } = {}) {
+    constructor(type: string, props: MouseEventInit & { pointerId?: number; pointerType?: string } = {}) {
       super(type, { bubbles: true, cancelable: true, ...props });
       this.pointerId = props.pointerId ?? 1;
+      (this as unknown as { pointerType: string }).pointerType = props.pointerType ?? "";
     }
   }
   globalThis.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;

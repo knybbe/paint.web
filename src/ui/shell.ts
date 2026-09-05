@@ -1,20 +1,24 @@
 import type { AppState } from "../app-state";
-import { mountMobileDeck } from "./mobile-deck";
+import { bindChromePhase } from "./chrome-phase";
 import { mountCanvas } from "./canvas-view";
 import { mountStatus } from "./windows";
 import { mountAdaptiveDock } from "./dock";
 import { mountCommandPalette } from "./react/command-palette";
 import { mountDesktopChrome } from "./react/desktop-shell";
 import { mountDockPanels } from "./react/dock-panels";
+import { mountPhoneChrome } from "./react/phone-chrome";
+import { mountTabletInspector } from "./react/tablet-inspector";
 
 export function mountShell(root: HTMLElement, app: AppState): void {
+  bindChromePhase(app);
   root.className = "pdn-shell modern-shell";
   root.innerHTML = "";
 
   const chromeHost = document.createElement("div");
   chromeHost.className = "desktop-chrome-host";
 
-  const mobileDeck = mountMobileDeck(root, app);
+  const phoneHost = document.createElement("div");
+  phoneHost.className = "phone-chrome-host";
 
   const workspace = document.createElement("div");
   workspace.className = "workspace";
@@ -27,29 +31,27 @@ export function mountShell(root: HTMLElement, app: AppState): void {
 
   const right = document.createElement("aside");
   right.className = "dock right";
+  const inspectorBar = document.createElement("div");
+  inspectorBar.className = "tablet-inspector-host";
   const layersHost = document.createElement("div");
   const colorsHost = document.createElement("div");
   const historyHost = document.createElement("div");
-  right.append(layersHost, colorsHost, historyHost);
+  right.append(inspectorBar, layersHost, colorsHost, historyHost);
 
   workspace.append(railHost, center, right);
 
+  const thumbHost = document.createElement("div");
+  thumbHost.className = "tablet-thumb-host";
+
   const status = document.createElement("footer");
 
-  root.append(
-    chromeHost,
-    mobileDeck.topBar,
-    workspace,
-    mobileDeck.contextPill,
-    mobileDeck.deckBar,
-    mobileDeck.sheetHost,
-    mobileDeck.backdrop,
-    status,
-  );
+  root.append(chromeHost, phoneHost, workspace, thumbHost, status);
 
-  mountDesktopChrome(chromeHost, app, railHost);
+  mountDesktopChrome(chromeHost, app, railHost, thumbHost);
+  mountPhoneChrome(phoneHost, app);
   mountCanvas(center, app);
   mountDockPanels(layersHost, colorsHost, historyHost, app);
+  mountTabletInspector(inspectorBar, app);
   mountStatus(status, app);
   mountCommandPalette(app);
 
@@ -66,6 +68,9 @@ export function mountShell(root: HTMLElement, app: AppState): void {
     workspace.classList.toggle("no-left-dock", !leftVisible);
     right.classList.toggle("collapsed", !rightVisible);
     workspace.classList.toggle("no-right-dock", !rightVisible);
+    layersHost.classList.toggle("tablet-active", app.windows.layers);
+    colorsHost.classList.toggle("tablet-active", app.windows.colors);
+    historyHost.classList.toggle("tablet-active", app.windows.history);
   };
   updateDocks();
   app.addEventListener("windows", updateDocks);

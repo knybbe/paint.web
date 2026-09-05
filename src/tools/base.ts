@@ -55,6 +55,7 @@ export interface ToolOptions {
   fontItalic: boolean;
   fontAlign: "left" | "center" | "right";
   pressure: boolean;
+  touchFingerMode: "draw" | "pan";
 }
 
 export const DEFAULT_TOOL_OPTIONS: ToolOptions = {
@@ -75,6 +76,7 @@ export const DEFAULT_TOOL_OPTIONS: ToolOptions = {
   fontItalic: false,
   fontAlign: "left",
   pressure: true,
+  touchFingerMode: "draw",
 };
 
 export interface ToolPointer {

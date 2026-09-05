@@ -7,6 +7,7 @@ import { effectsByMenu } from "@/effects/registry";
 import { getTool } from "@/tools/registry";
 import type { ToolId } from "@/tools/base";
 import { TOOL_SVG, UI_ICONS } from "@/ui/icons";
+import { useChromePhase } from "@/ui/chrome-phase";
 import { openCommandPalette } from "@/ui/react/command-palette";
 import { useAppEvents } from "@/ui/react/use-app";
 import { Button } from "@/ui/react/components/ui/button";
@@ -219,10 +220,13 @@ function applyZoom(app: AppState, item: (typeof ZOOM_PRESETS)[number]): void {
 }
 
 function TitleRow({ app }: { app: AppState }) {
-  useAppEvents(app, ["history", "document", "viewport", "theme", "sessions"]);
+  useAppEvents(app, ["history", "document", "viewport", "theme", "sessions", "tool"]);
+  const phase = useChromePhase();
   const zoomPct = Math.round(app.viewport.zoom * 100);
   const dark = app.settings.theme === "dark";
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  const iconSearch = phase !== "desktop";
+  const fingerPan = app.options.touchFingerMode === "pan";
   return (
     <div className="desktop-title-row" data-testid="title-row">
       <div className="desktop-title-actions">
@@ -263,13 +267,12 @@ function TitleRow({ app }: { app: AppState }) {
       </div>
       <button
         type="button"
-        className="desktop-search-btn"
+        className={iconSearch ? "chrome-icon-btn" : "desktop-search-btn"}
         data-testid="command-palette-btn"
         title="Command palette (Ctrl+K)"
         onClick={() => openCommandPalette()}
       >
-        Search
-        <kbd>{mac ? "⌘K" : "Ctrl+K"}</kbd>
+        {iconSearch ? <SvgIcon svg={UI_ICONS.search} /> : <>Search <kbd>{mac ? "⌘K" : "Ctrl+K"}</kbd></>}
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -300,6 +303,20 @@ function TitleRow({ app }: { app: AppState }) {
       >
         <SvgIcon svg={UI_ICONS.fit} />
       </button>
+      {phase === "tablet" ? (
+        <button
+          type="button"
+          className={`chrome-icon-btn${fingerPan ? " active" : ""}`}
+          title={fingerPan ? "Finger pans (tap to draw)" : "Finger draws (tap to pan)"}
+          data-testid="tablet-finger-mode"
+          onClick={() => {
+            app.options.touchFingerMode = fingerPan ? "draw" : "pan";
+            app.notify("tool");
+          }}
+        >
+          <SvgIcon svg={fingerPan ? TOOL_SVG.pan : TOOL_SVG.paintbrush} />
+        </button>
+      ) : null}
       <Toggle
         pressed={dark}
         title={`Switch to ${dark ? "Light" : "Dark"} theme`}
@@ -665,15 +682,33 @@ function ToolRail({ app }: { app: AppState }) {
   );
 }
 
-function DesktopChrome({ app, railHost }: { app: AppState; railHost: HTMLElement }) {
+function DesktopChrome({
+  app,
+  railHost,
+  thumbHost,
+}: {
+  app: AppState;
+  railHost: HTMLElement;
+  thumbHost: HTMLElement;
+}) {
+  const phase = useChromePhase();
+  const strip = <ToolOptionsStrip app={app} />;
   return (
-    <TooltipProvider delayDuration={400}>
+    <TooltipProvider delayDuration={phase === "desktop" ? 400 : 10000}>
       <div className="desktop-chrome">
         <AppMenubar app={app} />
         <TitleRow app={app} />
-        <ToolOptionsStrip app={app} />
+        {phase !== "tablet" ? strip : null}
       </div>
       {createPortal(<ToolRail app={app} />, railHost)}
+      {phase === "tablet"
+        ? createPortal(
+            <div className="tablet-thumb-strip" data-testid="tablet-thumb-strip">
+              {strip}
+            </div>,
+            thumbHost,
+          )
+        : null}
     </TooltipProvider>
   );
 }
@@ -686,10 +721,15 @@ export function unmountDesktopChrome(): void {
   }
 }
 
-export function mountDesktopChrome(host: HTMLElement, app: AppState, railHost: HTMLElement): void {
+export function mountDesktopChrome(
+  host: HTMLElement,
+  app: AppState,
+  railHost: HTMLElement,
+  thumbHost: HTMLElement,
+): void {
   unmountDesktopChrome();
   chromeRoot = createRoot(host);
   flushSync(() => {
-    chromeRoot!.render(<DesktopChrome app={app} railHost={railHost} />);
+    chromeRoot!.render(<DesktopChrome app={app} railHost={railHost} thumbHost={thumbHost} />);
   });
 }

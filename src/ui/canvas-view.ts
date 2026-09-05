@@ -4,6 +4,7 @@ import { zoomFactorFromWheel } from "../core/viewport";
 import { getTool } from "../tools/registry";
 import { drawSelectionHandles } from "../tools/move";
 import type { ToolPointer } from "../tools/base";
+import { getChromePhase } from "./chrome-phase";
 import { visualMode } from "../visual-mode";
 
 export function mountCanvas(root: HTMLElement, app: AppState): void {
@@ -56,11 +57,12 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       t.addEventListener("click", () => app.activateSession(s.id));
       tabs.append(t);
     }
+    tabs.classList.toggle("has-many", app.sessions.length > 1);
   };
 
   const resize = () => {
     const dpr = window.devicePixelRatio || 1;
-    const compact = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 860px)").matches;
+    const compact = getChromePhase() === "phone";
     if (app.viewport.showRulers && !compact) {
       rulerH.style.display = "";
       rulerV.style.display = "";
@@ -241,6 +243,12 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       getTool("pan").pointerDown(p, app.toolContext());
       return;
     }
+    const fingerPan = e.pointerType === "touch" && app.options.touchFingerMode === "pan";
+    if (fingerPan) {
+      app.spacePan = true;
+      getTool("pan").pointerDown(p, app.toolContext());
+      return;
+    }
     getTool(app.currentTool).pointerDown(p, app.toolContext());
     app.notify("status");
   });
@@ -339,10 +347,7 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   ro.observe(root);
   ro.observe(host);
   window.addEventListener("resize", resize);
-  if (typeof window.matchMedia === "function") {
-    const mq = window.matchMedia("(max-width: 860px)");
-    mq.addEventListener?.("change", resize);
-  }
+  window.addEventListener("pdn-chrome", resize);
 
   app.addEventListener("sessions", paintTabs);
   app.addEventListener("document", paintTabs);
