@@ -1,10 +1,11 @@
 import type { AppState } from "../app-state";
 import { mountMobileDeck } from "./mobile-deck";
 import { mountCanvas } from "./canvas-view";
-import { mountColorsWindow, mountHistoryWindow, mountLayersWindow, mountStatus } from "./windows";
-import { mountDialogHost } from "./dialogs";
+import { mountStatus } from "./windows";
 import { mountAdaptiveDock } from "./dock";
+import { mountCommandPalette } from "./react/command-palette";
 import { mountDesktopChrome } from "./react/desktop-shell";
+import { mountDockPanels } from "./react/dock-panels";
 
 export function mountShell(root: HTMLElement, app: AppState): void {
   root.className = "pdn-shell modern-shell";
@@ -34,7 +35,6 @@ export function mountShell(root: HTMLElement, app: AppState): void {
   workspace.append(railHost, center, right);
 
   const status = document.createElement("footer");
-  const dialogs = document.createElement("div");
 
   root.append(
     chromeHost,
@@ -45,16 +45,13 @@ export function mountShell(root: HTMLElement, app: AppState): void {
     mobileDeck.sheetHost,
     mobileDeck.backdrop,
     status,
-    dialogs,
   );
 
   mountDesktopChrome(chromeHost, app, railHost);
   mountCanvas(center, app);
-  mountLayersWindow(layersHost, app);
-  mountColorsWindow(colorsHost, app);
-  mountHistoryWindow(historyHost, app);
+  mountDockPanels(layersHost, colorsHost, historyHost, app);
   mountStatus(status, app);
-  mountDialogHost(dialogs, app);
+  mountCommandPalette(app);
 
   mountAdaptiveDock(right, [
     { id: "layers", label: "Layers", host: layersHost },

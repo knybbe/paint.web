@@ -657,6 +657,17 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 .preview-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .preview-row canvas { width: 100%; height: 140px; background: #808080; border: 1px solid var(--pdn-border); }
 
+.pdn-dialog[data-slot="dialog-content"],
+.pdn-dialog[data-slot="alert-dialog-content"] {
+  min-width: min(360px, calc(100vw - 20px));
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: hidden;
+}
+.pdn-dialog .dialog-head {
+  position: relative;
+}
+
 .hidden { display: none !important; }
 
 .dock-tabs {
@@ -2060,7 +2071,9 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   }
 
   /* Dialogs */
-  .dialog {
+  .dialog,
+  .pdn-dialog[data-slot="dialog-content"],
+  .pdn-dialog[data-slot="alert-dialog-content"] {
     min-width: 0;
     width: calc(100vw - 20px);
     max-width: 100%;

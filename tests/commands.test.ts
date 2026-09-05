@@ -6,10 +6,12 @@ import { bindShortcuts } from "../src/shortcuts";
 import { mountShell } from "../src/ui/shell";
 import { closeCommandPalette, mountCommandPalette, openCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
 import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
+import { unmountDockPanels } from "../src/ui/react/dock-panels";
 
 describe("command registry", () => {
   afterEach(() => {
     unmountCommandPalette();
+    unmountDockPanels();
     unmountDesktopChrome();
     document.body.innerHTML = "";
   });
@@ -27,7 +29,9 @@ describe("command registry", () => {
     await app.init();
     mountShell(document.getElementById("app")!, app);
 
-    expect(runCommand(app, "file.new")).toBe(true);
+    await act(async () => {
+      expect(runCommand(app, "file.new")).toBe(true);
+    });
     expect(app.dialog?.type).toBe("new");
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();

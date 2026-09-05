@@ -1,7 +1,9 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { AppState } from "@/app-state";
 import { commandsByGroup, runCommand } from "@/commands";
+import { AppDialogs } from "@/ui/react/app-dialogs";
 import { useAppEvents } from "@/ui/react/use-app";
 import {
   CommandDialog,
@@ -113,14 +115,17 @@ function PaletteRoot({ app }: { app: AppState }) {
   }, []);
 
   return (
-    <CommandPalette
-      app={app}
-      open={open}
-      onOpenChange={(next) => {
-        notePaletteOpen(next);
-        setOpen(next);
-      }}
-    />
+    <>
+      <CommandPalette
+        app={app}
+        open={open}
+        onOpenChange={(next) => {
+          notePaletteOpen(next);
+          setOpen(next);
+        }}
+      />
+      <AppDialogs app={app} />
+    </>
   );
 }
 
@@ -141,5 +146,7 @@ export function mountCommandPalette(app: AppState): void {
     document.body.append(host);
   }
   if (!reactRoot) reactRoot = createRoot(host);
-  reactRoot.render(<PaletteRoot app={app} />);
+  flushSync(() => {
+    reactRoot!.render(<PaletteRoot app={app} />);
+  });
 }

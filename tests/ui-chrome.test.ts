@@ -5,6 +5,7 @@ import { mountShell } from "../src/ui/shell";
 import { bindShortcuts } from "../src/shortcuts";
 import { mountCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
 import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
+import { unmountDockPanels } from "../src/ui/react/dock-panels";
 import "../src/styles/app.css";
 
 async function mount(): Promise<AppState> {
@@ -34,6 +35,7 @@ describe("Desktop editor shell & mobile deck", () => {
 
   afterEach(() => {
     unmountCommandPalette();
+    unmountDockPanels();
     unmountDesktopChrome();
     document.body.innerHTML = "";
   });
@@ -62,6 +64,23 @@ describe("Desktop editor shell & mobile deck", () => {
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();
     expect(dialog?.textContent).toContain("New Image");
+  });
+
+  it("closes the New Image dialog on Cancel", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="menu-file"]'));
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="ribbon-file-new"]'));
+    });
+    const dialog = document.querySelector('[data-testid="dialog"]');
+    expect(dialog).toBeTruthy();
+    const cancel = [...dialog!.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Cancel");
+    await act(async () => {
+      click(cancel ?? null);
+    });
+    expect(app.dialog).toBeNull();
+    expect(document.querySelector('[data-testid="dialog"]')).toBeNull();
   });
 
   it("hides the tool rail when Window > Tools is toggled", () => {
@@ -105,10 +124,12 @@ describe("Desktop editor shell & mobile deck", () => {
     expect(updatedStrip?.textContent).toContain("Tolerance");
   });
 
-  it("adds a layer from the Layers inspector", () => {
+  it("adds a layer from the Layers inspector", async () => {
     expect(app.document.layers).toHaveLength(1);
     const addBtn = document.querySelector('[data-testid="window-layers"] button[title="Add"]');
-    click(addBtn);
+    await act(async () => {
+      click(addBtn);
+    });
     expect(app.document.layers).toHaveLength(2);
     expect(document.querySelector('[data-testid="window-layers"]')?.textContent).toContain("Layer 1");
   });
