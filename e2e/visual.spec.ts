@@ -18,7 +18,7 @@ test.describe("visual snapshots", () => {
 
   test("file menu", async ({ page }) => {
     await page.getByTestId("menu-file").click();
-    await expect(page.getByTestId("menu-dropdown-file")).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "New..." })).toBeVisible();
     await expect(page).toHaveScreenshot("file-menu-open.png");
   });
 
@@ -31,7 +31,6 @@ test.describe("visual snapshots", () => {
 
   test("effects submenu", async ({ page }) => {
     await page.getByTestId("menu-effects").click();
-    await page.getByRole("menuitem", { name: "Blurs" }).hover();
     await expect(page.getByRole("menuitem", { name: "Gaussian Blur..." })).toBeVisible();
     await expect(page).toHaveScreenshot("effects-blurs.png");
   });

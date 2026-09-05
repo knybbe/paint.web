@@ -1,24 +1,34 @@
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppState } from "../src/app-state";
 import { mountShell } from "../src/ui/shell";
 import { bindShortcuts } from "../src/shortcuts";
+import { mountCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
+import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
+import { unmountDockPanels } from "../src/ui/react/dock-panels";
+import { unmountPhoneChrome } from "../src/ui/react/phone-chrome";
+import { unmountTabletInspector } from "../src/ui/react/tablet-inspector";
 import "../src/styles/app.css";
 
 async function mount(): Promise<AppState> {
   document.body.innerHTML = '<div id="app"></div>';
   const app = new AppState();
   await app.init();
-  mountShell(document.getElementById("app")!, app);
-  bindShortcuts(app);
+  await act(async () => {
+    mountShell(document.getElementById("app")!, app);
+    bindShortcuts(app);
+  });
   return app;
 }
 
 function click(el: Element | null): void {
   if (!el) throw new Error("missing element");
+  el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+  el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
   el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 }
 
-describe("UI chrome and menus", () => {
+describe("Desktop editor shell & mobile deck", () => {
   let app: AppState;
 
   beforeEach(async () => {
@@ -26,111 +36,191 @@ describe("UI chrome and menus", () => {
   });
 
   afterEach(() => {
+    unmountCommandPalette();
+    unmountDockPanels();
+    unmountDesktopChrome();
+    unmountPhoneChrome();
+    unmountTabletInspector();
     document.body.innerHTML = "";
   });
 
-  it("renders the Paint.NET chrome", () => {
+  it("renders the desktop shell and mobile command deck", () => {
     expect(document.querySelector('[data-testid="menubar"]')).toBeTruthy();
-    expect(document.querySelector('[data-testid="toolbar"]')).toBeTruthy();
-    expect(document.querySelector('[data-testid="window-tools"]')).toBeTruthy();
-    expect(document.querySelector('[data-testid="window-colors"]')).toBeTruthy();
-    expect(document.querySelector('[data-testid="window-layers"]')).toBeTruthy();
-    expect(document.querySelector('[data-testid="window-history"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="ribbon-context-strip"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="tool-rail"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="mobile-command-deck"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="mobile-context-pill"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="canvas-host"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="statusbar"]')).toBeTruthy();
-    const titles = [...document.querySelectorAll(".menu-title")].map((el) => el.textContent);
-    expect(titles).toEqual(["File", "Edit", "View", "Image", "Layers", "Adjustments", "Effects", "Window", "Help"]);
+    expect(document.querySelector('[data-testid="window-tools"]')).toBeFalsy();
+
+    const menus = [...document.querySelectorAll('[data-slot="menubar-trigger"]')].map((el) => el.textContent?.trim());
+    expect(menus).toEqual(["File", "Edit", "Image", "Adjust", "Effects", "View", "Window", "Help"]);
   });
 
-  it("opens the File menu and keeps it open", () => {
-    const file = document.querySelector('[data-testid="menu-file"]');
-    const drop = document.querySelector('[data-testid="menu-dropdown-file"]') as HTMLElement;
-    const item = file?.closest(".menu-item");
-    expect(item?.classList.contains("open")).toBe(false);
-    click(file);
-    expect(item?.classList.contains("open")).toBe(true);
-    expect(drop.querySelector('[data-label="New..."]')).toBeTruthy();
-    expect(drop.querySelector('[data-label="Open..."]')).toBeTruthy();
-    expect(drop.querySelector('[data-label="Save"]')).toBeTruthy();
-    // second click on the title toggles closed
-    click(file);
-    expect(item?.classList.contains("open")).toBe(false);
-  });
-
-  it("runs File > New... and shows the New Image dialog", () => {
-    click(document.querySelector('[data-testid="menu-file"]'));
-    click(document.querySelector('[data-label="New..."]'));
+  it("runs File > New from the menubar and shows New Image dialog", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="menu-file"]'));
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="ribbon-file-new"]'));
+    });
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();
     expect(dialog?.textContent).toContain("New Image");
-    expect(document.querySelector('[data-testid="menu-file"]')?.closest(".menu-item")?.classList.contains("open")).toBe(
-      false,
-    );
   });
 
-  it("switches menus on hover once one is open", () => {
-    click(document.querySelector('[data-testid="menu-file"]'));
-    expect(document.querySelector('[data-testid="menu-file"]')?.closest(".menu-item")?.classList.contains("open")).toBe(
-      true,
-    );
-    document.querySelector('[data-testid="menu-help"]')?.closest(".menu-item")?.dispatchEvent(
-      new MouseEvent("mouseenter", { bubbles: true }),
-    );
-    expect(document.querySelector('[data-testid="menu-file"]')?.closest(".menu-item")?.classList.contains("open")).toBe(
-      false,
-    );
-    expect(document.querySelector('[data-testid="menu-help"]')?.closest(".menu-item")?.classList.contains("open")).toBe(
-      true,
-    );
-    expect(document.querySelector('[data-label="About paint.web"]')).toBeTruthy();
+  it("closes the New Image dialog on Cancel", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="menu-file"]'));
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="ribbon-file-new"]'));
+    });
+    const dialog = document.querySelector('[data-testid="dialog"]');
+    expect(dialog).toBeTruthy();
+    const cancel = [...dialog!.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Cancel");
+    await act(async () => {
+      click(cancel ?? null);
+    });
+    expect(app.dialog).toBeNull();
+    expect(document.querySelector('[data-testid="dialog"]')).toBeNull();
   });
 
-  it("opens About from Help", () => {
-    click(document.querySelector('[data-testid="menu-help"]'));
-    click(document.querySelector('[data-label="About paint.web"]'));
-    expect(document.querySelector('[data-testid="dialog"]')?.textContent).toMatch(/unofficial/i);
+  it("hides the tool rail when Window > Tools is toggled", () => {
+    const rail = document.querySelector(".tool-rail-host");
+    expect(rail?.classList.contains("collapsed")).toBe(false);
+    expect(document.querySelector(".workspace")?.classList.contains("no-left-dock")).toBe(false);
+    app.toggleWindow("tools");
+    expect(rail?.classList.contains("collapsed")).toBe(true);
+    expect(document.querySelector(".workspace")?.classList.contains("no-left-dock")).toBe(true);
+    app.toggleWindow("tools");
+    expect(rail?.classList.contains("collapsed")).toBe(false);
   });
 
-  it("selects tools from the Tools window", () => {
-    click(document.querySelector('[data-testid="tool-pencil"]'));
+  it("selects tools from the left tool rail", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-pencil"]'));
+    });
     expect(app.currentTool).toBe("pencil");
     expect(document.querySelector('[data-testid="tool-pencil"]')?.classList.contains("active")).toBe(true);
-    click(document.querySelector('[data-testid="tool-paintbrush"]'));
+
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-paintbrush"]'));
+    });
     expect(app.currentTool).toBe("paintbrush");
+    expect(document.querySelector('[data-testid="tool-paintbrush"]')?.classList.contains("active")).toBe(true);
   });
 
-  it("adds a layer from the Layers menu", () => {
+  it("updates contextual tool options strip when switching tools", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-paintbrush"]'));
+    });
+    const strip = document.querySelector('[data-testid="ribbon-context-strip"]');
+    expect(strip?.textContent).toContain("Paintbrush");
+    expect(strip?.textContent).toContain("Size");
+
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-magicWand"]'));
+    });
+    const updatedStrip = document.querySelector('[data-testid="ribbon-context-strip"]');
+    expect(updatedStrip?.textContent).toContain("Magic Wand");
+    expect(updatedStrip?.textContent).toContain("Tolerance");
+  });
+
+  it("adds a layer from the Layers inspector", async () => {
     expect(app.document.layers).toHaveLength(1);
-    click(document.querySelector('[data-testid="menu-layers"]'));
-    click(document.querySelector('[data-label="Add New Layer"]'));
+    const addBtn = document.querySelector('[data-testid="window-layers"] button[title="Add"]');
+    await act(async () => {
+      click(addBtn);
+    });
     expect(app.document.layers).toHaveLength(2);
     expect(document.querySelector('[data-testid="window-layers"]')?.textContent).toContain("Layer 1");
   });
 
-  it("toggles the Tools window from the Window menu", () => {
-    click(document.querySelector('[data-testid="menu-window"]'));
-    click(document.querySelector('[data-label="Tools"]'));
-    expect(app.windows.tools).toBe(false);
-    expect(document.querySelector('[data-testid="window-tools"]')).toBeNull();
-  });
-
-  it("exposes Fit to View in the toolbar, status bar, and View menu", () => {
-    expect(document.querySelector('[data-testid="tb-fit"]')).toBeTruthy();
+  it("exposes Fit to View in the title row and status bar", () => {
+    expect(document.querySelector('[data-testid="ribbon-fit"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="zoom-fit"]')).toBeTruthy();
-    click(document.querySelector('[data-testid="menu-view"]'));
-    expect(document.querySelector('[data-label="Fit to View"]')).toBeTruthy();
+
     app.viewport.viewWidth = 400;
     app.viewport.viewHeight = 300;
     app.viewport.zoom = 0.1;
-    click(document.querySelector('[data-label="Fit to View"]'));
+    click(document.querySelector('[data-testid="ribbon-fit"]'));
     expect(app.viewport.zoom).toBeGreaterThan(0.2);
   });
 
-  it("wires Open Recent items to an action", () => {
-    app.recent = [{ id: "r1", name: "photo.png", openedAt: Date.now() }];
-    click(document.querySelector('[data-testid="menu-file"]'));
-    const item = document.querySelector('[data-label="photo.png"]') as HTMLButtonElement | null;
-    expect(item).toBeTruthy();
-    expect(item?.disabled).toBe(false);
+  it("opens adjustment from the Adjust menu", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="menu-adjust"]'));
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="adj-brightnessContrast"]'));
+    });
+    const dialog = document.querySelector('[data-testid="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog?.textContent).toContain("Brightness / Contrast");
+  });
+
+  it("opens the command palette from the title row", async () => {
+    await act(async () => {
+      mountCommandPalette(app);
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="command-palette-btn"]'));
+    });
+    expect(document.querySelector('[data-testid="command-palette"]')).toBeTruthy();
+  });
+
+  it("opens mobile tools sheet from command deck and selects a tool", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="mobile-tab-tools"]'));
+    });
+
+    const sheet = document.querySelector('[data-testid="mobile-sheet-container"]');
+    expect(sheet).toBeTruthy();
+    expect(sheet?.textContent).toContain("Select Tool");
+
+    const mobileLasso = document.querySelector('[data-testid="mobile-tool-lassoSelect"]');
+    expect(mobileLasso).toBeTruthy();
+    await act(async () => {
+      click(mobileLasso);
+    });
+
+    expect(app.currentTool).toBe("lassoSelect");
+    expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeNull();
+  });
+
+  it("opens mobile layers sheet and adds a layer", async () => {
+    expect(app.document.layers).toHaveLength(1);
+    await act(async () => {
+      click(document.querySelector('[data-testid="mobile-tab-layers"]'));
+    });
+
+    const sheet = document.querySelector('[data-testid="mobile-sheet-container"]');
+    expect(sheet).toBeTruthy();
+
+    const addBtn = document.querySelector('[data-testid="mobile-layer-add"]');
+    expect(addBtn).toBeTruthy();
+    await act(async () => {
+      click(addBtn);
+    });
+
+    expect(app.document.layers).toHaveLength(2);
+  });
+
+  it("opens mobile color studio sheet and dismisses via backdrop", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="mobile-tab-color"]'));
+    });
+
+    expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeTruthy();
+    const backdrop = document.querySelector('[data-testid="mobile-sheet-backdrop"]');
+    expect(backdrop).toBeTruthy();
+
+    await act(async () => {
+      click(backdrop);
+    });
+    expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeNull();
+    expect(document.querySelector('[data-testid="mobile-sheet-backdrop"]')).toBeNull();
   });
 });

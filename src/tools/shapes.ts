@@ -371,6 +371,28 @@ export const textTool: Tool = (() => {
   let pos: Point | null = null;
   let text = "";
   let snap: ReturnType<typeof snapshotLayer> | null = null;
+  let currentFontSize = 16;
+  let inputProxy: HTMLInputElement | null = null;
+
+  function getOrCreateProxy(): HTMLInputElement {
+    if (!inputProxy || !document.body.contains(inputProxy)) {
+      inputProxy = document.createElement("input");
+      inputProxy.type = "text";
+      inputProxy.id = "pdn-text-input-proxy";
+      inputProxy.style.position = "fixed";
+      inputProxy.style.opacity = "0.01";
+      inputProxy.style.pointerEvents = "none";
+      inputProxy.style.zIndex = "-1";
+      inputProxy.style.left = "0px";
+      inputProxy.style.top = "0px";
+      inputProxy.setAttribute("autocomplete", "off");
+      inputProxy.setAttribute("autocorrect", "off");
+      inputProxy.setAttribute("autocapitalize", "off");
+      inputProxy.setAttribute("spellcheck", "false");
+      document.body.append(inputProxy);
+    }
+    return inputProxy;
+  }
 
   const tool: Tool = {
     id: "text",
@@ -384,8 +406,19 @@ export const textTool: Tool = (() => {
       snap = snapshotLayer(ctx);
       pos = { x: e.imageX, y: e.imageY };
       text = "";
+      currentFontSize = ctx.options.fontSize;
       ctx.status("Type text, Enter to commit, Esc to cancel");
       ctx.notify("overlay");
+
+      const input = getOrCreateProxy();
+      input.value = "";
+      input.style.left = `${e.screenX}px`;
+      input.style.top = `${e.screenY}px`;
+      input.focus();
+      input.oninput = () => {
+        text = input.value;
+        preview(ctx);
+      };
     },
     pointerMove(e, ctx) {
       if (!pos || !snap) return;
@@ -407,11 +440,13 @@ export const textTool: Tool = (() => {
       }
       if (e.key === "Backspace") {
         text = text.slice(0, -1);
+        if (inputProxy) inputProxy.value = text;
         preview(ctx);
         return true;
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
         text += e.key;
+        if (inputProxy) inputProxy.value = text;
         preview(ctx);
         return true;
       }
@@ -425,6 +460,10 @@ export const textTool: Tool = (() => {
         const layer = ctx.document.layerById(snap.id);
         if (layer) layer.buffer.data.set(snap.data);
       }
+      if (inputProxy) {
+        inputProxy.blur();
+        inputProxy.value = "";
+      }
       pos = null;
       text = "";
       snap = null;
@@ -436,6 +475,10 @@ export const textTool: Tool = (() => {
         const layer = ctx.document.layerById(snap.id);
         if (layer) layer.buffer.data.set(snap.data);
       }
+      if (inputProxy) {
+        inputProxy.blur();
+        inputProxy.value = "";
+      }
       pos = null;
       text = "";
       snap = null;
@@ -445,25 +488,35 @@ export const textTool: Tool = (() => {
     drawOverlay(c, vp) {
       if (!pos) return;
       const s = vp.imageToScreen(pos.x, pos.y);
+      const h = Math.max(12, currentFontSize * vp.zoom);
       c.save();
-      c.strokeStyle = "#000";
+      // White contrast background outline
+      c.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      c.lineWidth = 3;
       c.beginPath();
       c.moveTo(s.x, s.y);
-      c.lineTo(s.x, s.y + ctxFontPx(vp));
+      c.lineTo(s.x, s.y + h);
+      c.stroke();
+      // Black foreground stroke
+      c.strokeStyle = "#000000";
+      c.lineWidth = 1.2;
+      c.beginPath();
+      c.moveTo(s.x, s.y);
+      c.lineTo(s.x, s.y + h);
       c.stroke();
       c.restore();
     },
     reset() {
+      if (inputProxy) {
+        inputProxy.blur();
+        inputProxy.value = "";
+      }
       pos = null;
       text = "";
       snap = null;
     },
   };
   return tool;
-
-  function ctxFontPx(vp: { zoom: number }): number {
-    return 12 * vp.zoom;
-  }
 
   function preview(ctx: ToolContext) {
     if (!snap || !pos) return;

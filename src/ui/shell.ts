@@ -1,104 +1,78 @@
 import type { AppState } from "../app-state";
-import { mountMenu } from "./menu";
-import { mountToolbar } from "./toolbar";
+import { bindChromePhase, tabletInspectorPane } from "./chrome-phase";
 import { mountCanvas } from "./canvas-view";
-import { mountColorsWindow, mountHistoryWindow, mountLayersWindow, mountStatus, mountToolsWindow } from "./windows";
-import { mountDialogHost } from "./dialogs";
+import { mountStatus } from "./windows";
 import { mountAdaptiveDock } from "./dock";
+import { mountCommandPalette } from "./react/command-palette";
+import { mountDesktopChrome } from "./react/desktop-shell";
+import { mountDockPanels } from "./react/dock-panels";
+import { mountPhoneChrome } from "./react/phone-chrome";
+import { mountTabletInspector } from "./react/tablet-inspector";
 
 export function mountShell(root: HTMLElement, app: AppState): void {
-  root.className = "pdn-shell";
+  bindChromePhase(app);
+  root.className = "pdn-shell modern-shell";
   root.innerHTML = "";
-  const menu = document.createElement("nav");
-  const toolbar = document.createElement("div");
+
+  const chromeHost = document.createElement("div");
+  chromeHost.className = "desktop-chrome-host";
+
+  const phoneHost = document.createElement("div");
+  phoneHost.className = "phone-chrome-host";
+
   const workspace = document.createElement("div");
   workspace.className = "workspace";
-  const left = document.createElement("aside");
-  left.className = "dock left";
-  const toolsHost = document.createElement("div");
-  const colorsHost = document.createElement("div");
-  left.append(toolsHost, colorsHost);
+
+  const railHost = document.createElement("aside");
+  railHost.className = "tool-rail-host";
+
   const center = document.createElement("div");
+  center.className = "canvas-col";
+
   const right = document.createElement("aside");
   right.className = "dock right";
+  const inspectorBar = document.createElement("div");
+  inspectorBar.className = "tablet-inspector-host";
   const layersHost = document.createElement("div");
+  const colorsHost = document.createElement("div");
   const historyHost = document.createElement("div");
-  right.append(layersHost, historyHost);
-  workspace.append(left, center, right);
-  const mobileBar = document.createElement("div");
-  mobileBar.className = "mobile-bar";
-  mobileBar.dataset.testid = "mobile-bar";
+  right.append(inspectorBar, layersHost, colorsHost, historyHost);
+
+  workspace.append(railHost, center, right);
+
+  const thumbHost = document.createElement("div");
+  thumbHost.className = "tablet-thumb-host";
+
   const status = document.createElement("footer");
-  const dialogs = document.createElement("div");
-  const backdrop = document.createElement("div");
-  backdrop.className = "sheet-backdrop";
-  backdrop.dataset.testid = "sheet-backdrop";
-  root.append(menu, toolbar, workspace, mobileBar, status, dialogs, backdrop);
 
-  mountMenu(menu, app);
-  mountToolbar(toolbar, app);
+  root.append(chromeHost, phoneHost, workspace, thumbHost, status);
+
+  mountDesktopChrome(chromeHost, app, railHost, thumbHost);
+  mountPhoneChrome(phoneHost, app);
   mountCanvas(center, app);
-  mountToolsWindow(toolsHost, app);
-  mountColorsWindow(colorsHost, app);
-  mountLayersWindow(layersHost, app);
-  mountHistoryWindow(historyHost, app);
+  mountDockPanels(layersHost, colorsHost, historyHost, app);
+  mountTabletInspector(inspectorBar, app);
   mountStatus(status, app);
-  mountDialogHost(dialogs, app);
+  mountCommandPalette(app);
 
-  mountAdaptiveDock(left, [
-    { id: "tools", label: "Tools", host: toolsHost },
-    { id: "colors", label: "Colors", host: colorsHost },
-  ]);
   mountAdaptiveDock(right, [
     { id: "layers", label: "Layers", host: layersHost },
+    { id: "colors", label: "Colors", host: colorsHost },
     { id: "history", label: "History", host: historyHost },
   ]);
 
-  const closeSheet = (): void => {
-    root.removeAttribute("data-sheet");
-    root.removeAttribute("data-panel");
+  const updateDocks = () => {
+    const leftVisible = app.windows.tools;
+    const rightVisible = app.windows.layers || app.windows.colors || app.windows.history;
+    railHost.classList.toggle("collapsed", !leftVisible);
+    workspace.classList.toggle("no-left-dock", !leftVisible);
+    right.classList.toggle("collapsed", !rightVisible);
+    workspace.classList.toggle("no-right-dock", !rightVisible);
+    const pane = tabletInspectorPane(app);
+    layersHost.classList.toggle("tablet-active", pane === "layers");
+    colorsHost.classList.toggle("tablet-active", pane === "colors");
+    historyHost.classList.toggle("tablet-active", pane === "history");
   };
-
-  const openSheet = (sheet: "colors" | "panels", panel?: "layers" | "history"): void => {
-    if (root.dataset.sheet === sheet && (!panel || root.dataset.panel === panel)) {
-      closeSheet();
-      return;
-    }
-    root.dataset.sheet = sheet;
-    if (panel) {
-      root.dataset.panel = panel;
-      for (const pane of right.querySelectorAll(".dock-pane")) {
-        pane.classList.toggle("dock-pane-active", (pane as HTMLElement).dataset.pane === panel);
-      }
-      for (const tab of right.querySelectorAll(".dock-tab")) {
-        tab.classList.toggle("active", (tab as HTMLElement).dataset.pane === panel);
-      }
-    } else {
-      root.removeAttribute("data-panel");
-    }
-  };
-
-  const barBtn = (label: string, on: () => void, testid?: string): HTMLButtonElement => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "mobile-bar-btn";
-    b.textContent = label;
-    if (testid) b.dataset.testid = testid;
-    b.addEventListener("click", on);
-    return b;
-  };
-
-  mobileBar.append(
-    barBtn("Colors", () => openSheet("colors"), "mobile-colors"),
-    barBtn("Layers", () => openSheet("panels", "layers"), "mobile-layers"),
-    barBtn("History", () => openSheet("panels", "history"), "mobile-history"),
-    barBtn("Fit", () => app.fitToView(), "mobile-fit"),
-  );
-  backdrop.addEventListener("click", closeSheet);
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && root.dataset.sheet) {
-      closeSheet();
-      e.stopPropagation();
-    }
-  });
+  updateDocks();
+  app.addEventListener("windows", updateDocks);
 }

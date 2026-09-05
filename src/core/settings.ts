@@ -1,7 +1,8 @@
 import type { Color } from "./color";
 import { DEFAULT_PALETTE, rgb } from "./color";
+import type { ThemePref } from "./theme";
 
-export type ThemeName = "dark" | "light";
+export type ThemeName = ThemePref;
 
 export interface AppSettings {
   theme: ThemeName;
@@ -18,7 +19,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  theme: "dark",
+  theme: "system",
   defaultWidth: 800,
   defaultHeight: 600,
   defaultDpi: 96,

@@ -5,6 +5,14 @@ import { Selection } from "./core/selection";
 import { Viewport } from "./core/viewport";
 import { Compositor } from "./core/renderer";
 import { DEFAULT_SETTINGS, PRIMARY_DEFAULT, SECONDARY_DEFAULT, type AppSettings } from "./core/settings";
+import {
+  applyDomTheme,
+  bindSystemTheme,
+  parseThemePref,
+  persistThemePref,
+  resolveTheme,
+  unbindSystemTheme,
+} from "./core/theme";
 import { idbGet, idbSet, pushRecentFile, type RecentFile } from "./core/idb";
 import {
   applyDocument,
@@ -40,6 +48,7 @@ import { PixelBuffer } from "./core/pixel-buffer";
 import { Colors } from "./core/color";
 import { Layer } from "./core/layer";
 import type { BlendMode } from "./core/blend";
+import { getChromePhase, setTabletInspectorPane } from "./ui/chrome-phase";
 import { DEFAULT_TOOL_OPTIONS, nextInCycle, MOVE_CYCLE, SELECT_CYCLE, SHAPE_CYCLE, type ToolContext, type ToolId, type ToolOptions } from "./tools/base";
 import { getTool } from "./tools/registry";
 import type { EffectDef } from "./effects/base";
@@ -81,6 +90,7 @@ export class AppState extends EventTarget {
   lastEffect: { id: string; params: Record<string, number | boolean | string> } | null = null;
   recent: RecentFile[] = [];
   dialog: DialogState | null = null;
+  revision = 0;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private restoring = false;
 
@@ -109,6 +119,7 @@ export class AppState extends EventTarget {
   }
 
   notify(type: string): void {
+    this.revision++;
     this.dispatchEvent(new Event(type));
     if (
       !this.restoring &&
@@ -131,7 +142,12 @@ export class AppState extends EventTarget {
     try {
       const stored = await idbGet<AppSettings>("settings", "app");
       if (stored) {
-        this.settings = { ...DEFAULT_SETTINGS, ...stored, palette: stored.palette ?? DEFAULT_SETTINGS.palette };
+        this.settings = {
+          ...DEFAULT_SETTINGS,
+          ...stored,
+          theme: parseThemePref(stored.theme),
+          palette: stored.palette ?? DEFAULT_SETTINGS.palette,
+        };
         this.options.antialias = this.settings.antialias;
       }
       this.recent = (await idbGet<RecentFile[]>("recent", "list")) ?? [];
@@ -149,13 +165,17 @@ export class AppState extends EventTarget {
   }
 
   applyTheme(): void {
-    document.documentElement.dataset.theme = this.settings.theme;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", this.settings.theme === "dark" ? "#2b2b2b" : "#d4d4d4");
+    const pref = parseThemePref(this.settings.theme);
+    this.settings.theme = pref;
+    applyDomTheme(resolveTheme(pref));
+    persistThemePref(pref);
+    if (pref === "system") bindSystemTheme(() => this.applyTheme());
+    else unbindSystemTheme();
     this.notify("theme");
   }
 
   async persistSettings(): Promise<void> {
+    persistThemePref(parseThemePref(this.settings.theme));
     try {
       await idbSet("settings", "app", this.settings);
     } catch {
@@ -166,8 +186,24 @@ export class AppState extends EventTarget {
   newDocument(opts?: { width?: number; height?: number; dpi?: number; background?: BackgroundKind; name?: string }): DocumentSession {
     const width = opts?.width ?? this.settings.defaultWidth;
     const height = opts?.height ?? this.settings.defaultHeight;
+    let docName = opts?.name;
+    if (!docName) {
+      const baseName = "Untitled";
+      if (!this.sessions.length) {
+        docName = `${baseName}.png`;
+      } else {
+        const existing = new Set(this.sessions.map((s) => s.document.name.toLowerCase()));
+        if (!existing.has(`${baseName.toLowerCase()}.png`)) {
+          docName = `${baseName}.png`;
+        } else {
+          let num = 2;
+          while (existing.has(`${baseName.toLowerCase()} ${num}.png`)) num++;
+          docName = `${baseName} ${num}.png`;
+        }
+      }
+    }
     const doc = new PdDocument(width, height, {
-      name: opts?.name ?? "Untitled.png",
+      name: docName,
       dpi: opts?.dpi ?? this.settings.defaultDpi,
       background: opts?.background ?? this.settings.defaultBackground,
     });
@@ -328,22 +364,34 @@ export class AppState extends EventTarget {
     }
   }
 
-  async closeSession(id?: string): Promise<void> {
+  async closeSession(id?: string, force = false): Promise<void> {
     const sid = id ?? this.activeSessionId;
     const idx = this.sessions.findIndex((s) => s.id === sid);
     if (idx < 0) return;
-    if (this.sessions[idx].document.dirty) {
-      const ok = confirm(`Save changes to ${this.sessions[idx].document.name}?`);
-      if (ok) await this.save();
+    if (!force && this.sessions[idx].document.dirty) {
+      this.openDialog({ type: "confirmClose", sessionId: sid });
+      return;
     }
+    this.closeSessionFinal(sid);
+  }
+
+  closeSessionFinal(sid: string): void {
+    const idx = this.sessions.findIndex((s) => s.id === sid);
+    if (idx < 0) return;
     this.sessions.splice(idx, 1);
     if (!this.sessions.length) this.newDocument();
     else {
       this.activeSessionId = this.sessions[Math.min(idx, this.sessions.length - 1)].id;
       this.updateTitle();
     }
+    if (this.dialog?.type === "confirmClose" && this.dialog.sessionId === sid) {
+      this.closeDialog();
+    }
     this.notify("sessions");
     this.notify("document");
+    this.notify("history");
+    this.notify("selection");
+    this.notify("viewport");
   }
 
   fitToView(): void {
@@ -778,6 +826,34 @@ export class AppState extends EventTarget {
     this.notify("layers");
   }
 
+  moveActiveLayer(dir: 1 | -1): void {
+    const idx = this.document.layers.findIndex((l) => l.id === this.document.activeLayerId);
+    if (idx < 0) return;
+    const target = idx + dir;
+    if (target < 0 || target >= this.document.layers.length) return;
+    const before = this.document.layers.slice();
+    this.document.moveLayer(idx, target);
+    const after = this.document.layers.slice();
+    const active = this.document.activeLayerId;
+    this.pushNamed(
+      dir > 0 ? "Move Layer Up" : "Move Layer Down",
+      "layers",
+      () => {
+        this.document.layers = before;
+        this.document.activeLayerId = active;
+        this.compositor.invalidate();
+      },
+      () => {
+        this.document.layers = after;
+        this.document.activeLayerId = active;
+        this.compositor.invalidate();
+      },
+    );
+    this.compositor.invalidate();
+    this.notify("layers");
+    this.notify("document");
+  }
+
   flatten(): void {
     const before = this.document.layers.map((l) => l.clone());
     const active = this.document.activeLayerId;
@@ -999,6 +1075,11 @@ export class AppState extends EventTarget {
   }
 
   toggleWindow(name: keyof AppState["windows"]): void {
+    if (getChromePhase() === "tablet" && name !== "tools") {
+      const turningOn = !this.windows[name];
+      setTabletInspectorPane(this, turningOn ? name : null);
+      return;
+    }
     this.windows[name] = !this.windows[name];
     this.notify("windows");
   }
@@ -1014,4 +1095,5 @@ export type DialogState =
   | { type: "settings" }
   | { type: "shortcuts" }
   | { type: "saveAs"; format: SaveFormat }
-  | { type: "rotateZoom" };
+  | { type: "rotateZoom" }
+  | { type: "confirmClose"; sessionId: string };

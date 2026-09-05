@@ -1,7 +1,7 @@
 import { constrainSquare, ellipsePoints, normalizeRect, type Point } from "../core/geometry";
 import { combineFromModifiers, type SelectionCombine } from "../core/selection";
 import { floodMask, sampleSource } from "../core/flood-fill";
-import type { Tool, ToolId } from "./base";
+import type { Tool, ToolContext, ToolId } from "./base";
 
 interface DragState {
   start: Point;
@@ -9,6 +9,13 @@ interface DragState {
   points: Point[];
   mode: SelectionCombine;
   square: boolean;
+}
+
+function resolveSelectionMode(e: { ctrlKey?: boolean; altKey?: boolean }, ctx: ToolContext): SelectionCombine {
+  if (e.ctrlKey || e.altKey) {
+    return combineFromModifiers(e as any);
+  }
+  return ctx.options.selectionMode || "replace";
 }
 
 function makeSelectTool(id: ToolId, name: string, kind: "rect" | "ellipse" | "lasso"): Tool {
@@ -20,12 +27,12 @@ function makeSelectTool(id: ToolId, name: string, kind: "rect" | "ellipse" | "la
     shortcut: "S",
     group: "select",
     cursor: "crosshair",
-    pointerDown(e, _ctx) {
+    pointerDown(e, ctx) {
       drag = {
         start: { x: e.imageX, y: e.imageY },
         current: { x: e.imageX, y: e.imageY },
         points: [{ x: e.imageX, y: e.imageY }],
-        mode: combineFromModifiers(e),
+        mode: resolveSelectionMode(e, ctx),
         square: e.shiftKey,
       };
     },
@@ -127,7 +134,7 @@ export const magicWand: Tool = {
       contiguous,
       sampleMerged: ctx.options.sampleMode === "image",
     });
-    ctx.selection.applyMask(mask, combineFromModifiers(e));
+    ctx.selection.applyMask(mask, resolveSelectionMode(e, ctx));
     ctx.notify("selection");
   },
   pointerMove() {},
