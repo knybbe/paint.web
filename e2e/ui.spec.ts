@@ -19,8 +19,8 @@ test.beforeEach(async ({ page }) => {
 
 test("shell chrome is visible", async ({ page }) => {
   await expect(page.getByTestId("menubar")).toBeVisible();
-  await expect(page.getByTestId("toolbar")).toBeVisible();
-  await expect(page.getByTestId("window-tools")).toBeVisible();
+  await expect(page.getByTestId("tool-rail")).toBeVisible();
+  await expect(page.getByTestId("title-row")).toBeVisible();
   const colorsOpen = await page.getByTestId("window-colors").isVisible();
   const colorsTab = await page.getByTestId("dock-tab-colors").isVisible();
   expect(colorsOpen || colorsTab).toBe(true);
@@ -34,15 +34,12 @@ test("shell chrome is visible", async ({ page }) => {
 
 test("File menu opens and New... shows a dialog", async ({ page }) => {
   const file = page.getByTestId("menu-file");
-  const drop = page.getByTestId("menu-dropdown-file");
-  await expect(drop).toBeHidden();
   await file.click();
-  await expect(drop).toBeVisible();
-  await expect(drop.getByRole("menuitem", { name: "New..." })).toBeVisible();
+  const newItem = page.getByRole("menuitem", { name: "New..." });
+  await expect(newItem).toBeVisible();
   await page.screenshot({ path: join(ART, "02-file-menu.png") });
 
-  await drop.getByRole("menuitem", { name: "New..." }).click();
-  await expect(drop).toBeHidden();
+  await newItem.click();
   const dialog = page.getByTestId("dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "New Image" })).toBeVisible();
@@ -54,17 +51,16 @@ test("File menu opens and New... shows a dialog", async ({ page }) => {
 
 test("menus stay open when switching along the bar", async ({ page }) => {
   await page.getByTestId("menu-file").click();
-  await expect(page.getByTestId("menu-dropdown-file")).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "New..." })).toBeVisible();
   await page.getByTestId("menu-edit").hover();
-  await expect(page.getByTestId("menu-dropdown-file")).toBeHidden();
-  await expect(page.getByTestId("menu-dropdown-edit")).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Undo" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "New..." })).toHaveCount(0);
   await page.screenshot({ path: join(ART, "04-edit-menu.png") });
 });
 
 test("Help > About opens a modal", async ({ page }) => {
   await page.getByTestId("menu-help").click();
-  await expect(page.getByTestId("menu-dropdown-help")).toBeVisible();
-  await page.getByTestId("menu-dropdown-help").getByRole("menuitem", { name: "About paint.web" }).click();
+  await page.getByRole("menuitem", { name: "About paint.web" }).click();
   await expect(page.getByTestId("dialog")).toContainText("unofficial");
   await page.screenshot({ path: join(ART, "05-about.png") });
 });
@@ -78,25 +74,24 @@ test("tool buttons switch the current tool", async ({ page }) => {
   await page.screenshot({ path: join(ART, "06-tools.png") });
 });
 
-test("Layers > Add New Layer updates the layers window", async ({ page }) => {
-  await page.getByTestId("menu-layers").click();
-  await page.getByTestId("menu-dropdown-layers").getByRole("menuitem", { name: "Add New Layer" }).click();
+test("Layers panel Add updates the layers window", async ({ page }) => {
   const layers = page.getByTestId("window-layers");
+  await layers.getByTitle("Add").click();
   await expect(layers).toContainText("Background");
   await expect(layers).toContainText("Layer 1");
   await page.screenshot({ path: join(ART, "07-layers.png") });
 });
 
-test("Window menu can hide the Tools window", async ({ page }) => {
-  await expect(page.getByTestId("window-tools")).toBeVisible();
+test("Window menu can hide the Tools rail", async ({ page }) => {
+  await expect(page.getByTestId("tool-rail")).toBeVisible();
   await page.getByTestId("menu-window").click();
-  await page.getByTestId("menu-dropdown-window").getByRole("menuitem", { name: "Tools" }).click();
-  await expect(page.getByTestId("window-tools")).toHaveCount(0);
+  await page.getByRole("menuitemcheckbox", { name: "Tools" }).click();
+  await expect(page.getByTestId("tool-rail")).toBeHidden();
   await page.screenshot({ path: join(ART, "08-tools-hidden.png") });
 });
 
 test("Fit to View zooms the document to fill the canvas", async ({ page }) => {
-  await page.getByTestId("tb-fit").click();
+  await page.getByTestId("ribbon-fit").click();
   const zoom = await page.evaluate(() => {
     const app = (window as unknown as { __PAINT_APP__: { viewport: { zoom: number; viewWidth: number; viewHeight: number }; document: { width: number; height: number } } }).__PAINT_APP__;
     return {
@@ -114,7 +109,7 @@ test("Fit to View zooms the document to fill the canvas", async ({ page }) => {
 });
 
 test("canvas pointer maps to the image pixel under the cursor", async ({ page }) => {
-  await page.getByTestId("tb-fit").click();
+  await page.getByTestId("ribbon-fit").click();
   const mapped = await page.evaluate(() => {
     const app = (window as unknown as { __PAINT_APP__: { viewport: { panX: number; panY: number; zoom: number; screenToImage: (x: number, y: number) => { x: number; y: number } }; cursorImage: { x: number; y: number } | null } }).__PAINT_APP__;
     const host = document.querySelector('[data-testid="canvas-host"]') as HTMLElement;
@@ -150,7 +145,7 @@ test.describe("HiDPI workspace", () => {
   test.use({ deviceScaleFactor: 2 });
 
   test("document pixels line up with CSS pointer coordinates", async ({ page }) => {
-    await page.getByTestId("tb-fit").click();
+    await page.getByTestId("ribbon-fit").click();
     const sample = await page.evaluate(() => {
       const app = (window as unknown as { __PAINT_APP__: { viewport: { panX: number; panY: number; zoom: number } } }).__PAINT_APP__;
       const canvas = document.querySelector('[data-testid="canvas-host"] canvas') as HTMLCanvasElement;
@@ -175,16 +170,16 @@ test.describe("HiDPI workspace", () => {
   });
 });
 
-test("mobile chrome uses a bottom bar and keeps the canvas", async ({ page }) => {
+test("mobile chrome uses a command deck and keeps the canvas", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(200);
-  await expect(page.getByTestId("mobile-bar")).toBeVisible();
+  await expect(page.getByTestId("mobile-command-deck")).toBeVisible();
   await expect(page.getByTestId("canvas-host")).toBeVisible();
-  await page.getByTestId("mobile-layers").click();
-  await expect(page.getByTestId("window-layers")).toBeVisible();
-  await page.getByTestId("sheet-backdrop").click();
-  await expect(page.locator(".pdn-shell")).not.toHaveAttribute("data-sheet");
-  await page.getByTestId("mobile-fit").click();
+  await page.getByTestId("mobile-tab-layers").click();
+  await expect(page.getByTestId("mobile-sheet-container")).toBeVisible();
+  await page.getByTestId("mobile-sheet-backdrop").click();
+  await expect(page.getByTestId("mobile-sheet-container")).toHaveCount(0);
+  await page.getByTestId("mobile-top-fit").click();
   const zoom = await page.evaluate(() => (window as unknown as { __PAINT_APP__: { viewport: { zoom: number } } }).__PAINT_APP__.viewport.zoom);
   expect(zoom).toBeGreaterThan(0);
   await page.screenshot({ path: join(ART, "10-mobile.png") });

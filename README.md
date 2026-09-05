@@ -1,6 +1,6 @@
 # paint.web
 
-An unofficial, fully offline-capable Progressive Web App inspired by **Paint.NET** (Rick Brewster / dotPDN LLC). It is a browser-native image editor: layers, history, tools, adjustments, effects, and a desktop-first chrome that follows Paint.NET’s classic layout.
+An unofficial, fully offline-capable Progressive Web App inspired by **Paint.NET** (Rick Brewster / dotPDN LLC). It is a browser-native image editor: layers, history, tools, adjustments, effects, and adaptive chrome (desktop menubar + tool rail + inspectors; tablet hybrid; phone command deck).
 
 **Live:** [https://knybbe.github.io/paint.web/](https://knybbe.github.io/paint.web/)
 
@@ -11,8 +11,8 @@ An unofficial, fully offline-capable Progressive Web App inspired by **Paint.NET
 - 100% client-side after first load (no server, no account, no cloud)
 - Installable PWA with a service worker that caches the entire app
 - Multi-document tabs, multi-layer documents, unlimited undo/redo (capped)
-- Tools, menus, and shortcuts aligned with Paint.NET 4/5
-- Dark and light themes, a phone chrome with a bottom bar, and HiDPI-correct canvas drawing
+- Tools, menus, and shortcuts aligned with Paint.NET 4/5; command palette via Ctrl/Cmd+K
+- Dark and light themes, HiDPI-correct canvas drawing, and chrome that switches by viewport: desktop menubar + tool rail + inspectors, tablet hybrid, phone deck
 - Fit to View, continuous trackpad pinch zoom, and File > Open Recent that reopens stored images
 - Open PNG / JPEG / BMP / GIF / WebP / `.pdnweb`; save those plus a layered `.pdnweb` format
 
@@ -48,7 +48,7 @@ After the first visit the app loads and edits with the network disabled.
 | Undo/redo (command snapshots) | `src/core/history.ts`, `src/app-state.ts` |
 | Tools | `src/tools/` |
 | Adjustments & effects | `src/effects/` |
-| UI chrome (menus, docks, canvas) | `src/ui/` |
+| UI chrome (desktop menubar, tool rail, inspectors, phone deck, canvas) | `src/ui/` |
 | Shortcuts | `src/shortcuts.ts` |
 | PWA | `public/manifest.webmanifest`, `vite-plugin-pwa` |
 
@@ -63,7 +63,7 @@ Pixel data lives in `PixelBuffer` (typed arrays) so the document model is testab
 | Layer masks | **Basic** — per-layer grayscale mask in the model and compositor; no dedicated mask UI yet |
 | History panel + undo/redo | **Full** (pixel snapshots; memory-limited) |
 | Image / canvas size, rotate, flip, crop | **Full** |
-| Zoom, pan, Fit to View, rulers, pixel grid, guides | **Full** (pinch / Ctrl+wheel is continuous; Fit to View is on the toolbar, status bar, and View menu) |
+| Zoom, pan, Fit to View, rulers, pixel grid, guides | **Full** (pinch / Ctrl+wheel is continuous; Fit to View is on the title row, status bar, and View menu) |
 | Selection tools (rect, ellipse, lasso, wand) + combine modes | **Full** |
 | Move selection / move pixels (nubs, rotate, copy) | **Full** (approximate of PDN’s transform nubs) |
 | Pencil, brush, eraser, bucket, gradient, picker | **Full** |
@@ -75,7 +75,7 @@ Pixel data lives in `PixelBuffer` (typed arrays) so the document model is testab
 | Clipboard | **Full** via `ClipboardItem` + in-memory fallback |
 | Keyboard shortcuts | **Full** for the documented PDN command set used here |
 | Dark / light theme | **Full** |
-| Phone / narrow layout | **Full** (bottom bar, tool strip, sheets for layers/colors/history) |
+| Phone / tablet chrome | **Full** — phone command deck + sheets; tablet hybrid (menubar, rail, inspector); desktop menubar + tool rail + docks. Ctrl/Cmd+K opens the command palette |
 | IndexedDB settings + recent list | **Full** (Open Recent reopens stored file blobs) |
 | Restore workspace after refresh/close (including undo/redo) | **Full** |
 | Floating paste (apply on Enter or tool change) | **Full** |
@@ -99,7 +99,7 @@ Pixel data lives in `PixelBuffer` (typed arrays) so the document model is testab
 
 ```bash
 npm test                 # unit tests (document, history, blend, selection)
-npm run test:e2e         # Playwright: menus, dialogs, tools, layers (writes e2e/artifacts/*.png)
+npm run test:e2e         # Playwright: shell, menus, dialogs, tools, layers (writes e2e/artifacts/*.png)
 npm run test:visual      # write/update visual snapshot baselines
 npm run test:visual:check  # fail if chrome/menus/dialogs changed
 ```
