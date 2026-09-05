@@ -680,10 +680,6 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 .pdn-dialog .dialog-head {
   position: relative;
 }
-/* Unlayered so it wins over .desktop-menu-content { z-index: 2500 } and sits above dialog overlay 4000. */
-[data-slot="select-content"] {
-  z-index: 4100;
-}
 
 .hidden { display: none !important; }
 
@@ -1298,6 +1294,11 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   color: var(--pdn-text);
   box-shadow: var(--pdn-shadow);
   font-size: 12px;
+}
+/* Unlayered, after .desktop-menu-content { z-index: 2500 }. Select portals to body (not under .pdn-dialog),
+   so this attribute combo is the rule that actually beats 2500 and the layered Tailwind z-[4100]. Overlay is 4000. */
+.desktop-menu-content[data-slot="select-content"] {
+  z-index: 4100;
 }
 .desktop-menu-content [data-slot="menubar-item"],
 .desktop-menu-content [data-slot="menubar-checkbox-item"],

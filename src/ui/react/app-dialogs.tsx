@@ -36,7 +36,7 @@ const DIALOG_BOX =
   "pdn-dialog flex flex-col gap-0 p-0 rounded-[4px] sm:max-w-[380px] bg-[var(--pdn-window)] shadow-[var(--pdn-shadow)] overflow-hidden";
 const BTN = "h-7 min-w-[74px] rounded-[4px] px-3 text-[12px]";
 const INP = "h-7 rounded-[4px] px-2 text-[12px] shadow-none";
-const SELECT_CONTENT = "desktop-menu-content z-[4100]";
+const SELECT_CONTENT = "desktop-menu-content";
 
 function isSelectEventTarget(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest("[data-slot=select-content], [data-slot=select-item]");
