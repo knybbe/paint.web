@@ -33,9 +33,18 @@ import { Slider } from "@/ui/react/components/ui/slider";
 import { useAppEvent } from "@/ui/react/use-app";
 
 const DIALOG_BOX =
-  "pdn-dialog gap-0 p-0 rounded-[4px] sm:max-w-[380px] bg-[var(--pdn-window)] shadow-[var(--pdn-shadow)]";
+  "pdn-dialog flex flex-col gap-0 p-0 rounded-[4px] sm:max-w-[380px] bg-[var(--pdn-window)] shadow-[var(--pdn-shadow)] overflow-hidden";
 const BTN = "h-7 min-w-[74px] rounded-[4px] px-3 text-[12px]";
 const INP = "h-7 rounded-[4px] px-2 text-[12px] shadow-none";
+const SELECT_CONTENT = "desktop-menu-content z-[4100]";
+
+function isSelectEventTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest("[data-slot=select-content], [data-slot=select-item]");
+}
+
+function dismissUnlessSelect(e: { target: EventTarget | null; preventDefault: () => void }): void {
+  if (isSelectEventTarget(e.target)) e.preventDefault();
+}
 
 function focusFirstField(e: Event): void {
   const box = e.currentTarget as HTMLElement;
@@ -127,6 +136,9 @@ function AppDialogShell({
         className={DIALOG_BOX}
         onOpenAutoFocus={focusFirstField}
         onKeyDown={submitOnEnter}
+        onPointerDownOutside={dismissUnlessSelect}
+        onInteractOutside={dismissUnlessSelect}
+        onFocusOutside={dismissUnlessSelect}
       >
         <DialogHeader className="dialog-head m-0 flex-row items-center justify-between rounded-t-[4px] px-3 py-0 pr-8">
           <DialogTitle className="text-[13px] font-semibold">{title}</DialogTitle>
@@ -184,7 +196,7 @@ function NewDialog({ app }: { app: AppState }) {
             <SelectTrigger size="sm" className="h-7 min-h-7 rounded-[4px] px-2 text-[12px] shadow-none">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="desktop-menu-content">
+            <SelectContent className={SELECT_CONTENT}>
               {(["White", "Black", "Transparent"] as const).map((b) => (
                 <SelectItem key={b} value={b} className="text-[12px]">
                   {b}
@@ -240,7 +252,7 @@ function ResizeDialog({ app }: { app: AppState }) {
             <SelectTrigger size="sm" className="h-7 min-h-7 rounded-[4px] px-2 text-[12px] shadow-none">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="desktop-menu-content">
+            <SelectContent className={SELECT_CONTENT}>
               <SelectItem value="bilinear" className="text-[12px]">
                 Bilinear (Best Quality)
               </SelectItem>
@@ -348,7 +360,7 @@ function LayerPropsDialog({ app }: { app: AppState }) {
             <SelectTrigger size="sm" className="h-7 min-h-7 rounded-[4px] px-2 text-[12px] shadow-none">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="desktop-menu-content">
+            <SelectContent className={SELECT_CONTENT}>
               {BLEND_MODES.map((m) => (
                 <SelectItem key={m} value={m} className="text-[12px]">
                   {m}
@@ -518,7 +530,7 @@ function SettingsDialog({ app }: { app: AppState }) {
             <SelectTrigger size="sm" className="h-7 min-h-7 rounded-[4px] px-2 text-[12px] shadow-none">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="desktop-menu-content">
+            <SelectContent className={SELECT_CONTENT}>
               <SelectItem value="dark" className="text-[12px]">
                 Dark
               </SelectItem>
@@ -600,7 +612,7 @@ function SaveAsDialog({ app, format }: { app: AppState; format: SaveFormat }) {
             <SelectTrigger size="sm" className="h-7 min-h-7 rounded-[4px] px-2 text-[12px] shadow-none">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="desktop-menu-content">
+            <SelectContent className={SELECT_CONTENT}>
               {(["png", "jpeg", "bmp", "gif", "webp", "pdnweb"] as SaveFormat[]).map((f) => (
                 <SelectItem key={f} value={f} className="text-[12px]">
                   {f === "pdnweb" ? "paint.web layered (.pdnweb)" : f.toUpperCase()}

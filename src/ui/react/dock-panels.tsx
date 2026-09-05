@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { AppState } from "@/app-state";
@@ -120,25 +120,7 @@ function LayersPanel({ app }: { app: AppState }) {
           <SvgIcon svg={UI_ICONS.arrowDown} />
         </button>
       </div>
-      <div className="opacity-row">
-        Opacity
-        <input
-          type="range"
-          min={0}
-          max={255}
-          value={active.opacity}
-          onInput={(e) => {
-            active.opacity = Number((e.target as HTMLInputElement).value);
-            app.compositor.invalidate();
-            app.notify("layers");
-          }}
-          onChange={() => {
-            app.document.dirty = true;
-            app.notify("layers");
-          }}
-        />
-        <span>{Math.round((active.opacity / 255) * 100)}%</span>
-      </div>
+      <LayerOpacitySlider app={app} layerId={active.id} opacity={active.opacity} />
       <select
         value={active.blendMode}
         onChange={(e) => {
@@ -154,6 +136,36 @@ function LayersPanel({ app }: { app: AppState }) {
         ))}
       </select>
     </WindowFrame>
+  );
+}
+
+function LayerOpacitySlider({ app, layerId, opacity }: { app: AppState; layerId: string; opacity: number }) {
+  const [live, setLive] = useState(opacity);
+  useEffect(() => {
+    setLive(opacity);
+  }, [layerId, opacity]);
+  return (
+    <div className="opacity-row">
+      Opacity
+      <input
+        type="range"
+        min={0}
+        max={255}
+        value={live}
+        onInput={(e) => {
+          const v = Number((e.target as HTMLInputElement).value);
+          setLive(v);
+          const layer = app.document.layerById(layerId) ?? app.document.activeLayer;
+          layer.opacity = v;
+          app.compositor.invalidate();
+        }}
+        onChange={() => {
+          app.document.dirty = true;
+          app.notify("layers");
+        }}
+      />
+      <span>{Math.round((live / 255) * 100)}%</span>
+    </div>
   );
 }
 

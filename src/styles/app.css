@@ -659,13 +659,30 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 
 .pdn-dialog[data-slot="dialog-content"],
 .pdn-dialog[data-slot="alert-dialog-content"] {
+  display: flex;
+  flex-direction: column;
   min-width: min(360px, calc(100vw - 20px));
   max-width: 560px;
   max-height: 90vh;
   overflow: hidden;
+  min-height: 0;
+}
+.pdn-dialog .dialog-head,
+.pdn-dialog [data-slot="dialog-footer"],
+.pdn-dialog [data-slot="alert-dialog-footer"] {
+  flex: 0 0 auto;
+}
+.pdn-dialog .body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 .pdn-dialog .dialog-head {
   position: relative;
+}
+/* Unlayered so it wins over .desktop-menu-content { z-index: 2500 } and sits above dialog overlay 4000. */
+[data-slot="select-content"] {
+  z-index: 4100;
 }
 
 .hidden { display: none !important; }
