@@ -1,0 +1,37 @@
+{
+  "name": "@yearlylabs/local-sync",
+  "version": "0.1.0",
+  "description": "Generic File System Access folder sync for PWAs \u2014 granular docs, multi-device merge via cloud-synced folders",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "pwa",
+    "sync",
+    "filesystem-access",
+    "indexeddb",
+    "offline",
+    "conflict-resolution"
+  ],
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yearlylabs/local-sync.git"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

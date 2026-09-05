@@ -4,6 +4,8 @@ import { mountShell } from "./ui/shell";
 import { bindShortcuts } from "./shortcuts";
 import { mountCommandPalette } from "./ui/react/command-palette";
 import { registerSW } from "virtual:pwa-register";
+import { registerWebMcpTools } from "./core/webmcp";
+import { initLocalSync } from "./core/sync";
 
 const root = document.getElementById("app");
 if (!root) throw new Error("#app missing");
@@ -12,6 +14,8 @@ const app = new AppState();
 
 async function boot(): Promise<void> {
   await app.init();
+  registerWebMcpTools(app);
+  void initLocalSync(app);
   mountShell(root!, app);
   mountCommandPalette(app);
   bindShortcuts(app);

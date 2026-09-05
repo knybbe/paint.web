@@ -38,6 +38,16 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
     | null = null;
   let lastRulers = app.viewport.showRulers;
 
+  const updateCursor = () => {
+    if (spaceHeld || app.spacePan) {
+      host.style.cursor = "grab";
+      return;
+    }
+    const tool = getTool(app.currentTool);
+    host.style.cursor = tool.cursor || "crosshair";
+  };
+
+
   const paintTabs = () => {
     tabs.innerHTML = "";
     for (const s of app.sessions) {
@@ -57,6 +67,17 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       t.addEventListener("click", () => app.activateSession(s.id));
       tabs.append(t);
     }
+    const newTabBtn = document.createElement("button");
+    newTabBtn.type = "button";
+    newTabBtn.className = "imagetab-new";
+    newTabBtn.title = "New image (Ctrl+N)";
+    newTabBtn.setAttribute("data-testid", "new-tab-button");
+    newTabBtn.setAttribute("aria-label", "New image");
+    newTabBtn.textContent = "+";
+    newTabBtn.addEventListener("click", () => {
+      app.openDialog({ type: "new" });
+    });
+    tabs.append(newTabBtn);
     tabs.classList.toggle("has-many", app.sessions.length > 1);
   };
 
@@ -162,6 +183,28 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
         if ((app.currentTool === "movePixels" || app.currentTool === "moveSelection") && app.selection.bounds) {
           drawSelectionHandles(c, app.selection.bounds, vp);
         }
+        if (
+          app.cursorImage &&
+          (app.currentTool === "paintbrush" ||
+            app.currentTool === "eraser" ||
+            app.currentTool === "cloneStamp" ||
+            app.currentTool === "recolor")
+        ) {
+          const center = vp.imageToScreen(app.cursorImage.x, app.cursorImage.y);
+          const radius = Math.max(1, (app.options.brushWidth / 2) * vp.zoom);
+          c.save();
+          c.beginPath();
+          c.arc(center.x, center.y, radius, 0, Math.PI * 2);
+          c.strokeStyle = "rgba(0, 0, 0, 0.65)";
+          c.lineWidth = 1;
+          c.stroke();
+          c.beginPath();
+          c.arc(center.x, center.y, radius, 0, Math.PI * 2);
+          c.strokeStyle = "rgba(255, 255, 255, 0.85)";
+          c.setLineDash([2, 2]);
+          c.stroke();
+          c.restore();
+        }
       },
       app.session.floating,
     );
@@ -175,9 +218,11 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   };
 
   const toPointer = (e: PointerEvent): ToolPointer => {
-    const r = host.getBoundingClientRect();
-    const sx = e.clientX - r.left;
-    const sy = e.clientY - r.top;
+    const cr = canvas.getBoundingClientRect();
+    const scaleX = cr.width > 0 ? app.viewport.viewWidth / cr.width : 1;
+    const scaleY = cr.height > 0 ? app.viewport.viewHeight / cr.height : 1;
+    const sx = (e.clientX - cr.left) * scaleX;
+    const sy = (e.clientY - cr.top) * scaleY;
     const img = app.viewport.screenToImage(sx, sy);
     return {
       imageX: img.x,
@@ -290,6 +335,7 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       getTool(app.currentTool).pointerUp(p, app.toolContext());
       pointerId = null;
     }
+    updateCursor();
   };
 
   host.addEventListener("pointerup", finishPointer);
@@ -314,8 +360,10 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
 
   host.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const r = host.getBoundingClientRect();
-    const around = { x: e.clientX - r.left, y: e.clientY - r.top };
+    const cr = canvas.getBoundingClientRect();
+    const scaleX = cr.width > 0 ? app.viewport.viewWidth / cr.width : 1;
+    const scaleY = cr.height > 0 ? app.viewport.viewHeight / cr.height : 1;
+    const around = { x: (e.clientX - cr.left) * scaleX, y: (e.clientY - cr.top) * scaleY };
     // Wheel and trackpad always zoom (including mobile mice). Pan is drag / space / two-finger pinch-pan.
     app.viewport.zoomByFactor(zoomFactorFromWheel(e.deltaY, e.deltaMode), around);
     app.notify("viewport");
@@ -332,7 +380,7 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   window.addEventListener("keyup", (e) => {
     if (e.code === "Space") {
       spaceHeld = false;
-      host.style.cursor = "";
+      updateCursor();
     }
   });
 
@@ -354,10 +402,14 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   });
   app.addEventListener("selection", draw);
   app.addEventListener("overlay", draw);
-  app.addEventListener("tool", draw);
+  app.addEventListener("tool", () => {
+    updateCursor();
+    draw();
+  });
   app.addEventListener("theme", draw);
 
   paintTabs();
+  updateCursor();
   requestAnimationFrame(() => {
     resize();
     if (!app.session.preserveViewport) {

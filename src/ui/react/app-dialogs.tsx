@@ -7,6 +7,7 @@ import type { SaveFormat } from "@/core/file-io";
 import type { PixelBuffer } from "@/core/pixel-buffer";
 import { getEffect } from "@/effects/registry";
 import { paramMap } from "@/effects/base";
+import { localSync, runFolderSync, isSyncSupported, type ConflictInfo, type LocalSyncState } from "@/core/sync";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -736,6 +737,226 @@ function ConfirmCloseDialog({ app, sessionId }: { app: AppState; sessionId: stri
   );
 }
 
+function SyncDialog({ app }: { app: AppState }) {
+  const [state, setState] = useState<LocalSyncState>(() => localSync.getState());
+  const [conflicts, setConflicts] = useState<ConflictInfo[]>(() => localSync.listConflicts());
+  const [working, setWorking] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    return localSync.subscribe((next) => {
+      setState(next);
+      setConflicts(localSync.listConflicts());
+    });
+  }, []);
+
+  const handleMap = async () => {
+    setWorking(true);
+    setMsg(null);
+    try {
+      await localSync.mapFolder();
+      await localSync.sync();
+      setMsg("Folder connected and synced successfully.");
+    } catch (err: unknown) {
+      const e = err as Error;
+      if (e?.name !== "AbortError") {
+        setMsg(e?.message || "Failed to map folder.");
+      }
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setWorking(true);
+    setMsg(null);
+    try {
+      await runFolderSync();
+      setMsg("Sync finished.");
+    } catch (err: unknown) {
+      const e = err as Error;
+      setMsg(e?.message || "Sync failed.");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleUnmap = async () => {
+    setWorking(true);
+    setMsg(null);
+    try {
+      await localSync.unmapFolder();
+      setMsg("Folder disconnected.");
+    } catch (err: unknown) {
+      const e = err as Error;
+      setMsg(e?.message || "Failed to disconnect.");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleResolve = async (c: ConflictInfo, choice: "local" | "remote") => {
+    try {
+      await localSync.resolveConflict(c.collection, c.id, choice);
+      setConflicts(localSync.listConflicts());
+    } catch (err: unknown) {
+      const e = err as Error;
+      setMsg(e?.message || "Conflict resolution failed.");
+    }
+  };
+
+  const handlePermission = async () => {
+    setWorking(true);
+    try {
+      await localSync.requestPermission();
+      await runFolderSync();
+    } catch (err: unknown) {
+      const e = err as Error;
+      setMsg(e?.message || "Permission request failed.");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <AppDialogShell
+      title="Folder Sync"
+      primary="Close"
+      hideCancel
+      onClose={() => app.closeDialog()}
+      onPrimary={() => app.closeDialog()}
+    >
+      <div className="flex flex-col gap-3 text-[12px]">
+        <p className="text-muted-foreground leading-snug">
+          Keep your Paint.NET drawings and settings in sync with a local directory on your disk using YearlyLabs Local Sync.
+        </p>
+
+        <div className="rounded-md border border-border bg-muted/40 p-2.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-foreground">Status:</span>
+            <span className="capitalize px-1.5 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary">
+              {state.status}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Folder:</span>
+            <span className="font-mono text-foreground">{state.folderName ?? "None"}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Last Sync:</span>
+            <span>{state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleTimeString() : "Never"}</span>
+          </div>
+          {state.lastError ? (
+            <div className="text-destructive text-[11px] mt-1">{state.lastError}</div>
+          ) : null}
+          {msg ? (
+            <div className="text-primary text-[11px] mt-1">{msg}</div>
+          ) : null}
+        </div>
+
+        {!isSyncSupported() ? (
+          <p className="text-[11px] text-muted-foreground italic">
+            Native File System directory picker is unsupported in this browser; local sync is running in memory mode.
+          </p>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {state.status === "unmapped" || state.status === "unsupported" ? (
+            <Button
+              type="button"
+              className={BTN}
+              disabled={working}
+              data-testid="sync-map-btn"
+              onClick={() => void handleMap()}
+            >
+              {working ? "Connecting..." : "Connect Local Folder..."}
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                className={BTN}
+                disabled={working || state.status === "syncing"}
+                data-testid="sync-now-btn"
+                onClick={() => void handleSyncNow()}
+              >
+                {state.status === "syncing" ? "Syncing..." : "Sync Now"}
+              </Button>
+              {state.status === "permission_needed" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={BTN}
+                  disabled={working}
+                  onClick={() => void handlePermission()}
+                >
+                  Grant Permission
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className={BTN}
+                disabled={working}
+                onClick={() => void handleMap()}
+              >
+                Change Folder
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className={`${BTN} text-destructive`}
+                disabled={working}
+                data-testid="sync-unmap-btn"
+                onClick={() => void handleUnmap()}
+              >
+                Disconnect
+              </Button>
+            </>
+          )}
+        </div>
+
+        {conflicts.length > 0 ? (
+          <div className="mt-2 border-t border-border pt-2">
+            <h5 className="font-semibold text-foreground mb-1.5">Unresolved Conflicts ({conflicts.length})</h5>
+            <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
+              {conflicts.map((c) => (
+                <div key={`${c.collection}:${c.id}`} className="rounded border border-border p-2 text-[11px] space-y-1">
+                  <div className="font-mono text-[11px]">{c.collection}/{c.id}</div>
+                  <div className="flex justify-between text-muted-foreground text-[10px]">
+                    <span>Local: {new Date(c.local.updatedAt).toLocaleTimeString()}</span>
+                    <span>Remote: {new Date(c.remote.updatedAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => void handleResolve(c, "local")}
+                    >
+                      Keep Local
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => void handleResolve(c, "remote")}
+                    >
+                      Keep Remote
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </AppDialogShell>
+  );
+}
+
 export function AppDialogs({ app }: { app: AppState }) {
   useAppEvent(app, "dialog");
   const d = app.dialog;
@@ -751,5 +972,6 @@ export function AppDialogs({ app }: { app: AppState }) {
   if (d.type === "saveAs") return <SaveAsDialog app={app} format={d.format} />;
   if (d.type === "rotateZoom") return <RotateZoomDialog app={app} />;
   if (d.type === "confirmClose") return <ConfirmCloseDialog app={app} sessionId={d.sessionId} />;
+  if (d.type === "sync") return <SyncDialog app={app} />;
   return null;
 }

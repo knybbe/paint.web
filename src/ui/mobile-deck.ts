@@ -496,6 +496,7 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
         { label: "Open", icon: UI_ICONS.open, action: () => void app.openFiles() },
         { label: "Save", icon: UI_ICONS.save, action: () => void app.save(false) },
         { label: "Save As", icon: UI_ICONS.save, action: () => void app.save(true) },
+        { label: "Folder Sync...", icon: UI_ICONS.sync, action: () => app.openDialog({ type: "sync" }) },
         { label: "Print", icon: UI_ICONS.save, action: () => app.print() },
       ],
     },

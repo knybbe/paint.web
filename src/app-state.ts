@@ -14,6 +14,7 @@ import {
   unbindSystemTheme,
 } from "./core/theme";
 import { idbGet, idbSet, pushRecentFile, type RecentFile } from "./core/idb";
+import { syncSaveDocument } from "./core/sync";
 import {
   applyDocument,
   loadWorkspace,
@@ -255,6 +256,9 @@ export class AppState extends EventTarget {
     if (this.restoring || !this.sessions.length) return;
     try {
       await saveWorkspace(this.captureWorkspace());
+      if (this.session) {
+        void syncSaveDocument(this.session.id, this.session.document);
+      }
     } catch {
       /* quota or private mode */
     }
@@ -1096,4 +1100,5 @@ export type DialogState =
   | { type: "shortcuts" }
   | { type: "saveAs"; format: SaveFormat }
   | { type: "rotateZoom" }
-  | { type: "confirmClose"; sessionId: string };
+  | { type: "confirmClose"; sessionId: string }
+  | { type: "sync" };
