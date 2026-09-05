@@ -1,4 +1,5 @@
 import type { AppState } from "../app-state";
+import { MIN_ZOOM, MAX_ZOOM } from "../core/viewport";
 import { TOOL_LAYOUT } from "../tools/registry";
 import { getTool } from "../tools/registry";
 import { svgEl, TOOL_SVG, UI_ICONS } from "./icons";
@@ -496,8 +497,8 @@ export function mountStatus(root: HTMLElement, app: AppState): void {
   fit.addEventListener("click", () => app.fitToView());
   const range = document.createElement("input");
   range.type = "range";
-  range.min = "10";
-  range.max = "3200";
+  range.min = String(Math.round(MIN_ZOOM * 100));
+  range.max = String(Math.round(MAX_ZOOM * 100));
   range.title = "Zoom";
   const txt = document.createElement("input");
   txt.type = "text";

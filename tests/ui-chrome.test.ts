@@ -1,24 +1,31 @@
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppState } from "../src/app-state";
 import { mountShell } from "../src/ui/shell";
 import { bindShortcuts } from "../src/shortcuts";
+import { mountCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
+import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
 import "../src/styles/app.css";
 
 async function mount(): Promise<AppState> {
   document.body.innerHTML = '<div id="app"></div>';
   const app = new AppState();
   await app.init();
-  mountShell(document.getElementById("app")!, app);
-  bindShortcuts(app);
+  await act(async () => {
+    mountShell(document.getElementById("app")!, app);
+    bindShortcuts(app);
+  });
   return app;
 }
 
 function click(el: Element | null): void {
   if (!el) throw new Error("missing element");
+  el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+  el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true }));
   el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 }
 
-describe("Modern UI Chrome: Office-Style Ribbon & Mobile Deck", () => {
+describe("Desktop editor shell & mobile deck", () => {
   let app: AppState;
 
   beforeEach(async () => {
@@ -26,126 +33,78 @@ describe("Modern UI Chrome: Office-Style Ribbon & Mobile Deck", () => {
   });
 
   afterEach(() => {
+    unmountCommandPalette();
+    unmountDesktopChrome();
     document.body.innerHTML = "";
   });
 
-  it("renders the modern desktop ribbon and mobile command deck", () => {
-    expect(document.querySelector('[data-testid="ribbon-bar"]')).toBeTruthy();
+  it("renders the desktop shell and mobile command deck", () => {
+    expect(document.querySelector('[data-testid="menubar"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="ribbon-context-strip"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="tool-rail"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="mobile-command-deck"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="mobile-context-pill"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="canvas-host"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="statusbar"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="window-tools"]')).toBeFalsy();
 
-    const tabLabels = [...document.querySelectorAll(".ribbon-tab-btn")].map((el) => el.textContent?.trim());
-    expect(tabLabels).toEqual(["Home", "Tools", "Image", "Adjust & FX", "Layers", "View"]);
+    const menus = [...document.querySelectorAll('[data-slot="menubar-trigger"]')].map((el) => el.textContent?.trim());
+    expect(menus).toEqual(["File", "Edit", "Image", "Adjust", "Effects", "View", "Window", "Help"]);
   });
 
-  it("switches ribbon tabs seamlessly", () => {
-    const homeTab = document.querySelector('[data-testid="ribbon-tab-home"]');
-    const toolsTab = document.querySelector('[data-testid="ribbon-tab-tools"]');
-    expect(homeTab?.classList.contains("active")).toBe(true);
-    expect(document.querySelector('[data-testid="ribbon-file-new"]')).toBeTruthy();
-
-    click(toolsTab);
-    expect(document.querySelector('[data-testid="ribbon-tab-tools"]')?.classList.contains("active")).toBe(true);
-    expect(document.querySelector('[data-testid="tool-paintbrush"]')).toBeTruthy();
-  });
-
-  it("switches ribbon tabs from the compact dropdown menu", () => {
-    const trigger = document.querySelector('[data-testid="ribbon-tab-dropdown"]');
-    expect(trigger).toBeTruthy();
-    expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-
-    click(trigger);
-    const openTrigger = document.querySelector('[data-testid="ribbon-tab-dropdown"]');
-    const menu = document.querySelector('[data-testid="ribbon-tabs-menu"]');
-    expect(menu).toBeTruthy();
-    expect((menu as HTMLElement).hidden).toBe(false);
-    expect(openTrigger?.getAttribute("aria-expanded")).toBe("true");
-
-    click(document.querySelector('[data-testid="ribbon-tab-menu-tools"]'));
-    expect(document.querySelector('[data-testid="ribbon-tab-tools"]')?.classList.contains("active")).toBe(true);
-    expect(document.querySelector('[data-testid="tool-paintbrush"]')).toBeTruthy();
-    expect(document.querySelector('[data-testid="ribbon-tab-dropdown"]')?.textContent).toContain("Tools");
-    expect(document.querySelector('[data-testid="ribbon-tabs-menu"]')?.hasAttribute("hidden")).toBe(true);
-  });
-
-  it("applies compact-tabs when the viewport is narrow", async () => {
-    const original = window.matchMedia;
-    window.matchMedia = ((query: string) =>
-      ({
-        matches: String(query).includes("1100px"),
-        media: query,
-        onchange: null,
-        addEventListener() {},
-        removeEventListener() {},
-        addListener() {},
-        removeListener() {},
-        dispatchEvent() {
-          return false;
-        },
-      })) as typeof window.matchMedia;
-
-    document.body.innerHTML = '<div id="app"></div>';
-    const narrowApp = new AppState();
-    await narrowApp.init();
-    mountShell(document.getElementById("app")!, narrowApp);
-    bindShortcuts(narrowApp);
-
-    const bar = document.querySelector('[data-testid="ribbon-bar"]');
-    expect(bar?.classList.contains("compact-tabs")).toBe(true);
-    expect(bar?.getAttribute("data-compact-tabs")).toBe("1");
-
-    window.matchMedia = original;
-  });
-
-  it("runs File > New from Home ribbon tab and shows New Image dialog", () => {
-    click(document.querySelector('[data-testid="ribbon-tab-home"]'));
-    click(document.querySelector('[data-testid="ribbon-file-new"]'));
+  it("runs File > New from the menubar and shows New Image dialog", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="menu-file"]'));
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="ribbon-file-new"]'));
+    });
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();
     expect(dialog?.textContent).toContain("New Image");
   });
 
-  it("selects tools from the Ribbon Tools tab", () => {
-    click(document.querySelector('[data-testid="ribbon-tab-tools"]'));
-    click(document.querySelector('[data-testid="tool-pencil"]'));
+  it("selects tools from the left tool rail", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-pencil"]'));
+    });
     expect(app.currentTool).toBe("pencil");
     expect(document.querySelector('[data-testid="tool-pencil"]')?.classList.contains("active")).toBe(true);
 
-    click(document.querySelector('[data-testid="tool-paintbrush"]'));
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-paintbrush"]'));
+    });
     expect(app.currentTool).toBe("paintbrush");
     expect(document.querySelector('[data-testid="tool-paintbrush"]')?.classList.contains("active")).toBe(true);
   });
 
-  it("updates contextual tool options strip when switching tools", () => {
-    click(document.querySelector('[data-testid="ribbon-tab-tools"]'));
-    click(document.querySelector('[data-testid="tool-paintbrush"]'));
+  it("updates contextual tool options strip when switching tools", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-paintbrush"]'));
+    });
     const strip = document.querySelector('[data-testid="ribbon-context-strip"]');
     expect(strip?.textContent).toContain("Paintbrush");
     expect(strip?.textContent).toContain("Size");
 
-    click(document.querySelector('[data-testid="tool-magicWand"]'));
+    await act(async () => {
+      click(document.querySelector('[data-testid="tool-magicWand"]'));
+    });
     const updatedStrip = document.querySelector('[data-testid="ribbon-context-strip"]');
     expect(updatedStrip?.textContent).toContain("Magic Wand");
     expect(updatedStrip?.textContent).toContain("Tolerance");
   });
 
-  it("adds a layer from the Layers ribbon tab", () => {
+  it("adds a layer from the Layers inspector", () => {
     expect(app.document.layers).toHaveLength(1);
-    click(document.querySelector('[data-testid="ribbon-tab-layers"]'));
-    click(document.querySelector('[data-testid="ribbon-layer-add"]'));
+    const addBtn = document.querySelector('[data-testid="window-layers"] button[title="Add"]');
+    click(addBtn);
     expect(app.document.layers).toHaveLength(2);
     expect(document.querySelector('[data-testid="window-layers"]')?.textContent).toContain("Layer 1");
   });
 
-  it("exposes Fit to View in the ribbon bar, view tab, and status bar", () => {
+  it("exposes Fit to View in the title row and status bar", () => {
     expect(document.querySelector('[data-testid="ribbon-fit"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="zoom-fit"]')).toBeTruthy();
-
-    click(document.querySelector('[data-testid="ribbon-tab-view"]'));
-    expect(document.querySelector('[data-testid="ribbon-zoom-fit"]')).toBeTruthy();
 
     app.viewport.viewWidth = 400;
     app.viewport.viewHeight = 300;
@@ -154,12 +113,26 @@ describe("Modern UI Chrome: Office-Style Ribbon & Mobile Deck", () => {
     expect(app.viewport.zoom).toBeGreaterThan(0.2);
   });
 
-  it("opens adjustment from Adjust & FX ribbon tab", () => {
-    click(document.querySelector('[data-testid="ribbon-tab-adjustFx"]'));
-    click(document.querySelector('[data-testid="adj-brightnessContrast"]'));
+  it("opens adjustment from the Adjust menu", async () => {
+    await act(async () => {
+      click(document.querySelector('[data-testid="menu-adjust"]'));
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="adj-brightnessContrast"]'));
+    });
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();
     expect(dialog?.textContent).toContain("Brightness / Contrast");
+  });
+
+  it("opens the command palette from the title row", async () => {
+    await act(async () => {
+      mountCommandPalette(app);
+    });
+    await act(async () => {
+      click(document.querySelector('[data-testid="command-palette-btn"]'));
+    });
+    expect(document.querySelector('[data-testid="command-palette"]')).toBeTruthy();
   });
 
   it("opens mobile tools sheet from command deck and selects a tool", () => {

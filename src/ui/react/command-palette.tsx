@@ -124,6 +124,15 @@ function PaletteRoot({ app }: { app: AppState }) {
   );
 }
 
+export function unmountCommandPalette(): void {
+  reactRoot?.unmount();
+  reactRoot = null;
+  setPaletteOpen = null;
+  paletteOpen = false;
+  suppressAppShortcuts = false;
+  document.getElementById("react-overlay")?.remove();
+}
+
 export function mountCommandPalette(app: AppState): void {
   let host = document.getElementById("react-overlay");
   if (!host) {

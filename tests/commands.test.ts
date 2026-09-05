@@ -4,10 +4,13 @@ import { AppState } from "../src/app-state";
 import { getCommand, runCommand } from "../src/commands";
 import { bindShortcuts } from "../src/shortcuts";
 import { mountShell } from "../src/ui/shell";
-import { closeCommandPalette, mountCommandPalette, openCommandPalette } from "../src/ui/react/command-palette";
+import { closeCommandPalette, mountCommandPalette, openCommandPalette, unmountCommandPalette } from "../src/ui/react/command-palette";
+import { unmountDesktopChrome } from "../src/ui/react/desktop-shell";
 
 describe("command registry", () => {
   afterEach(() => {
+    unmountCommandPalette();
+    unmountDesktopChrome();
     document.body.innerHTML = "";
   });
 
