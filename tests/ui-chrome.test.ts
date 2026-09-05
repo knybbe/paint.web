@@ -64,6 +64,17 @@ describe("Desktop editor shell & mobile deck", () => {
     expect(dialog?.textContent).toContain("New Image");
   });
 
+  it("hides the tool rail when Window > Tools is toggled", () => {
+    const rail = document.querySelector(".tool-rail-host");
+    expect(rail?.classList.contains("collapsed")).toBe(false);
+    expect(document.querySelector(".workspace")?.classList.contains("no-left-dock")).toBe(false);
+    app.toggleWindow("tools");
+    expect(rail?.classList.contains("collapsed")).toBe(true);
+    expect(document.querySelector(".workspace")?.classList.contains("no-left-dock")).toBe(true);
+    app.toggleWindow("tools");
+    expect(rail?.classList.contains("collapsed")).toBe(false);
+  });
+
   it("selects tools from the left tool rail", async () => {
     await act(async () => {
       click(document.querySelector('[data-testid="tool-pencil"]'));

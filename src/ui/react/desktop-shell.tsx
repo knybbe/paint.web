@@ -322,12 +322,14 @@ function cap(s: string): string {
 }
 
 function SliderField({
+  app,
   label,
   value,
   min,
   max,
   onChange,
 }: {
+  app: AppState;
   label: string;
   value: number;
   min: number;
@@ -342,7 +344,10 @@ function SliderField({
         max={max}
         step={1}
         value={[value]}
-        onValueChange={(v) => onChange(v[0] ?? value)}
+        onValueChange={(v) => {
+          onChange(v[0] ?? value);
+          app.notify("tool");
+        }}
         className="w-20"
       />
       <span className="field-val">{value}</span>
@@ -350,21 +355,39 @@ function SliderField({
   );
 }
 
-function CheckField({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function CheckField({
+  app,
+  label,
+  value,
+  onChange,
+}: {
+  app: AppState;
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="context-check">
-      <Checkbox checked={value} onCheckedChange={(v) => onChange(v === true)} />
+      <Checkbox
+        checked={value}
+        onCheckedChange={(v) => {
+          onChange(v === true);
+          app.notify("tool");
+        }}
+      />
       {label}
     </label>
   );
 }
 
 function SelectField({
+  app,
   label,
   value,
   choices,
   onChange,
 }: {
+  app: AppState;
   label: string;
   value: string;
   choices: string[];
@@ -373,7 +396,13 @@ function SelectField({
   return (
     <label className="context-field">
       <span>{label}:</span>
-      <Select value={value} onValueChange={onChange}>
+      <Select
+        value={value}
+        onValueChange={(v) => {
+          onChange(v);
+          app.notify("tool");
+        }}
+      >
         <SelectTrigger size="sm" className="h-6 min-h-6 w-auto gap-1 rounded-[4px] px-2 py-0 text-[11px] shadow-none">
           <SelectValue />
         </SelectTrigger>
@@ -422,19 +451,20 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
       <div className="context-options-row">
         {needsBrush ? (
           <SliderField
+            app={app}
             label="Size"
             value={app.options.brushWidth}
             min={1}
             max={200}
             onChange={(v) => {
               app.options.brushWidth = v;
-              app.notify("tool");
             }}
           />
         ) : null}
         {["paintbrush", "eraser", "cloneStamp", "recolor"].includes(id) ? (
           <>
             <SliderField
+              app={app}
               label="Hardness"
               value={Math.round(app.options.hardness * 100)}
               min={0}
@@ -444,6 +474,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <CheckField
+              app={app}
               label="Anti-alias"
               value={app.options.antialias}
               onChange={(v) => {
@@ -451,6 +482,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <CheckField
+              app={app}
               label="Pressure"
               value={app.options.pressure}
               onChange={(v) => {
@@ -462,6 +494,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
         {["magicWand", "paintBucket", "recolor"].includes(id) ? (
           <>
             <SliderField
+              app={app}
               label="Tolerance"
               value={app.options.tolerance}
               min={0}
@@ -471,6 +504,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <SelectField
+              app={app}
               label="Flood"
               value={app.options.floodMode}
               choices={["contiguous", "global"]}
@@ -479,6 +513,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <SelectField
+              app={app}
               label="Sampling"
               value={app.options.sampleMode}
               choices={["layer", "image"]}
@@ -490,6 +525,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
         ) : null}
         {["rectangle", "roundedRectangle", "ellipse", "freeform"].includes(id) ? (
           <SelectField
+            app={app}
             label="Draw"
             value={app.options.shapeMode}
             choices={["outline", "filled", "both"]}
@@ -500,6 +536,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
         ) : null}
         {id === "roundedRectangle" ? (
           <SliderField
+            app={app}
             label="Radius"
             value={app.options.cornerRadius}
             min={0}
@@ -512,6 +549,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
         {id === "gradient" ? (
           <>
             <SelectField
+              app={app}
               label="Type"
               value={app.options.gradientType}
               choices={["linear", "radial", "diamond", "conical"]}
@@ -520,6 +558,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <CheckField
+              app={app}
               label="Alpha only"
               value={app.options.gradientAlphaOnly}
               onChange={(v) => {
@@ -549,6 +588,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
         {id === "text" ? (
           <>
             <SelectField
+              app={app}
               label="Font"
               value={app.options.fontFamily}
               choices={fonts}
@@ -557,6 +597,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <SliderField
+              app={app}
               label="Size"
               value={app.options.fontSize}
               min={8}
@@ -566,6 +607,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <CheckField
+              app={app}
               label="Bold"
               value={app.options.fontBold}
               onChange={(v) => {
@@ -573,6 +615,7 @@ function ToolOptionsStrip({ app }: { app: AppState }) {
               }}
             />
             <CheckField
+              app={app}
               label="Italic"
               value={app.options.fontItalic}
               onChange={(v) => {

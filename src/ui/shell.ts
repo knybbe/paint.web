@@ -63,7 +63,10 @@ export function mountShell(root: HTMLElement, app: AppState): void {
   ]);
 
   const updateDocks = () => {
+    const leftVisible = app.windows.tools;
     const rightVisible = app.windows.layers || app.windows.colors || app.windows.history;
+    railHost.classList.toggle("collapsed", !leftVisible);
+    workspace.classList.toggle("no-left-dock", !leftVisible);
     right.classList.toggle("collapsed", !rightVisible);
     workspace.classList.toggle("no-right-dock", !rightVisible);
   };
