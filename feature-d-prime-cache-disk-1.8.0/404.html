@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function() {
+        // Enforce trailing slash on preview subdirectories so relative ./assets resolve correctly
+        if (!location.pathname.endsWith('/') && !location.pathname.split('/').pop().includes('.')) {
+          location.replace(location.pathname + '/' + location.search + location.hash);
+        }
+        // In preview environments (subpaths like /ui/), unregister any root SW to prevent cache collisions
+        var isPreview = location.pathname.includes('/paint.web/') && 
+                        location.pathname !== '/paint.web/' && 
+                        location.pathname !== '/paint.web/index.html';
+        if (isPreview && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) regs[i].unregister();
+          });
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem("paint.web:theme") || "system";
+          var dark =
+            pref === "dark" ||
+            (pref !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+          var theme = document.querySelector('meta[name="theme-color"]');
+          if (theme) theme.setAttribute("content", dark ? "#0a0a0f" : "#ffffff");
+        } catch (err) {
+          document.documentElement.classList.add("dark");
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
+    <meta name="description" content="paint.web — a fully offline Paint.NET clone that runs in the browser." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="paint.web" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <title>Untitled - paint.web</title>
+    <script type="module" crossorigin src="./assets/index-DR-mSwRk.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-C-tycmxC.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
