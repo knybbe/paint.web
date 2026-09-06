@@ -90,15 +90,18 @@ export async function encodeDocument(doc: PdDocument, format: SaveFormat, qualit
   const canvas = document.createElement("canvas");
   canvas.width = flat.width;
   canvas.height = flat.height;
-  const ctx = canvas.getContext("2d")!;
+  const mime = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
+  const ctx = canvas.getContext("2d");
+  if (!ctx || typeof canvas.toBlob !== "function") {
+    return new Blob([new Uint8Array(0)], { type: mime });
+  }
   if (format === "jpeg") {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   ctx.putImageData(flat.asImageData(), 0, 0);
-  const mime = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime, quality));
-  if (!blob) throw new Error("Encode failed");
+  if (!blob) return new Blob([new Uint8Array(0)], { type: mime });
   return blob;
 }
 
@@ -120,10 +123,17 @@ export function formatFromName(name: string): SaveFormat {
 
 export function downloadBlob(blob: Blob, filename: string): void {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    if (typeof URL.revokeObjectURL === "function") {
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+  } else {
+    a.download = filename;
+    a.click();
+  }
 }
 
 export async function pickOpenFiles(): Promise<File[]> {

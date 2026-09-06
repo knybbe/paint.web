@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { XIcon } from "lucide-react";
 import { version as APP_VERSION } from "../../../package.json";
 import type { AppState } from "@/app-state";
 import { BLEND_MODES, type BlendMode } from "@/core/blend";
@@ -8,15 +7,6 @@ import type { PixelBuffer } from "@/core/pixel-buffer";
 import { getEffect } from "@/effects/registry";
 import { paramMap } from "@/effects/base";
 import { localSync, runFolderSync, isSyncSupported, type ConflictInfo, type LocalSyncState } from "@/core/sync";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/ui/react/components/ui/alert-dialog";
 import { Button } from "@/ui/react/components/ui/button";
 import { Checkbox } from "@/ui/react/components/ui/checkbox";
 import {
@@ -583,7 +573,7 @@ function ShortcutsDialog({ app }: { app: AppState }) {
           <b>Ctrl+Z/Y</b> undo/redo · <b>Ctrl+C/X/V</b> copy/cut/paste · <b>Delete</b> erase · <b>Backspace</b> fill
         </li>
         <li>
-          <b>Ctrl+N/O/S</b> new/open/save · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
+          <b>Ctrl+N/O</b> new/open · <b>Ctrl+Shift+S</b> download export · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
         </li>
         <li>
           <b>Space+drag</b> pan · <b>Wheel / pinch</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> fit to view
@@ -593,17 +583,17 @@ function ShortcutsDialog({ app }: { app: AppState }) {
   );
 }
 
-function SaveAsDialog({ app, format }: { app: AppState; format: SaveFormat }) {
+function DownloadDialog({ app, format }: { app: AppState; format: SaveFormat }) {
   const [name, setName] = useState(app.document.name.replace(/\.[^.]+$/, ""));
   const [fmt, setFmt] = useState<SaveFormat>(format);
   return (
     <AppDialogShell
-      title="Save As"
-      primary="Save"
+      title="Download Export"
+      primary="Download"
       onClose={() => app.closeDialog()}
       onPrimary={() => {
         const ext = fmt === "jpeg" ? ".jpg" : fmt === "pdnweb" ? ".pdnweb" : `.${fmt}`;
-        void app.saveWithFormat(fmt, name + ext);
+        void app.download(fmt, name + ext);
         app.closeDialog();
       }}
     >
@@ -673,69 +663,7 @@ function RotateZoomDialog({ app }: { app: AppState }) {
   );
 }
 
-function ConfirmCloseDialog({ app, sessionId }: { app: AppState; sessionId: string }) {
-  const session = app.sessions.find((s) => s.id === sessionId);
-  const name = session ? session.document.name : "Document";
-  const close = () => app.closeDialog();
-  return (
-    <AlertDialog
-      open
-      onOpenChange={(open) => {
-        if (!open) close();
-      }}
-    >
-      <AlertDialogContent
-        data-testid="dialog"
-        className={DIALOG_BOX}
-        onKeyDown={submitOnEnter}
-      >
-        <AlertDialogHeader className="dialog-head m-0 flex-row items-center justify-between rounded-t-[4px] px-3 py-0 pr-8">
-          <AlertDialogTitle className="text-[13px] font-semibold">Save Changes?</AlertDialogTitle>
-          <button
-            type="button"
-            className="absolute top-2 right-2 rounded-[4px] opacity-70 hover:opacity-100"
-            aria-label="Close"
-            title="Close (Esc)"
-            onClick={close}
-          >
-            <XIcon className="size-4" />
-          </button>
-        </AlertDialogHeader>
-        <div className="body px-3 py-3 text-[12px]">
-          <AlertDialogDescription className="mb-2 text-[12px] text-foreground">
-            Do you want to save changes to &quot;{name}&quot; before closing?
-          </AlertDialogDescription>
-          <p className="text-[11.5px] text-muted-foreground">
-            If you don&apos;t save, your unsaved changes will be permanently discarded.
-          </p>
-        </div>
-        <AlertDialogFooter className="flex-row justify-end gap-2 px-3 pb-3 sm:justify-end">
-          <AlertDialogCancel className={BTN} onClick={close}>
-            Cancel
-          </AlertDialogCancel>
-          <Button
-            type="button"
-            variant="outline"
-            className={`${BTN} text-destructive`}
-            onClick={() => app.closeSessionFinal(sessionId)}
-          >
-            Don&apos;t Save
-          </Button>
-          <Button
-            type="button"
-            data-dialog-primary
-            className={BTN}
-            onClick={() => {
-              void app.save().then(() => app.closeSessionFinal(sessionId));
-            }}
-          >
-            Save
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
+
 
 function SyncDialog({ app }: { app: AppState }) {
   const [state, setState] = useState<LocalSyncState>(() => localSync.getState());
@@ -969,9 +897,8 @@ export function AppDialogs({ app }: { app: AppState }) {
   if (d.type === "about") return <AboutDialog app={app} />;
   if (d.type === "settings") return <SettingsDialog app={app} />;
   if (d.type === "shortcuts") return <ShortcutsDialog app={app} />;
-  if (d.type === "saveAs") return <SaveAsDialog app={app} format={d.format} />;
+  if (d.type === "download") return <DownloadDialog app={app} format={d.format} />;
   if (d.type === "rotateZoom") return <RotateZoomDialog app={app} />;
-  if (d.type === "confirmClose") return <ConfirmCloseDialog app={app} sessionId={d.sessionId} />;
   if (d.type === "sync") return <SyncDialog app={app} />;
   return null;
 }

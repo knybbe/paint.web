@@ -91,4 +91,27 @@ describe("command registry", () => {
     expect(app.selection.empty).toBe(false);
     expect(app.dialog?.type).toBe("new");
   });
+
+  it("replaces Save and Save As with Download Export command", async () => {
+    expect(getCommand("file.save")).toBeUndefined();
+    expect(getCommand("file.saveAs")).toBeUndefined();
+
+    const dl = getCommand("file.download");
+    expect(dl).toBeTruthy();
+    expect(dl?.label).toBe("Download Export...");
+
+    document.body.innerHTML = '<div id="app"></div>';
+    const app = new AppState();
+    await app.init();
+    mountShell(document.getElementById("app")!, app);
+
+    await act(async () => {
+      expect(runCommand(app, "file.download")).toBe(true);
+    });
+
+    expect(app.dialog?.type).toBe("download");
+    const dialog = document.querySelector('[data-testid="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog?.textContent).toContain("Download Export");
+  });
 });

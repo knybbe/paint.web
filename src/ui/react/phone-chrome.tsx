@@ -94,8 +94,8 @@ function PhoneChrome({ app }: { app: AppState }) {
             <SvgIcon svg={UI_ICONS.fit} />
           </button>
           <ThemeToggle app={app} className="mobile-action-btn" />
-          <button type="button" className="mobile-action-btn" title="Save" data-testid="mobile-top-save" onClick={() => void app.save(false)}>
-            <SvgIcon svg={UI_ICONS.save} />
+          <button type="button" className="mobile-action-btn" title="Download" data-testid="mobile-top-download" onClick={() => void app.download()}>
+            <SvgIcon svg={UI_ICONS.download} />
           </button>
         </div>
       </header>
