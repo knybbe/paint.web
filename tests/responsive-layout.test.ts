@@ -134,4 +134,106 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     const statusbar = document.querySelector('[data-testid="statusbar"]');
     expect(statusbar).toBeTruthy();
   });
+
+  it("renders mobile document switcher dropdown at 390px with open sessions and supports switching, new tab, and close", async () => {
+    stubViewport(390, 844, true);
+    applyChromePhase();
+
+    await act(async () => {
+      mountShell(document.getElementById("app")!, app);
+    });
+
+    // Initially with 1 session, mobile bar is created in DOM
+    const imagelist = document.querySelector(".imagelist") as HTMLElement;
+    expect(imagelist).toBeTruthy();
+    const mobileBar = imagelist.querySelector('[data-testid="mobile-doc-bar"]') as HTMLElement;
+    expect(mobileBar).toBeTruthy();
+
+    const select = mobileBar.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.options.length).toBeGreaterThanOrEqual(1);
+
+    const newBtn = mobileBar.querySelector('[data-testid="mobile-new-tab-button"]') as HTMLButtonElement;
+    expect(newBtn).toBeTruthy();
+    expect(newBtn.textContent).toBe("+");
+
+    const closeBtn = mobileBar.querySelector('[data-testid="mobile-close-tab-button"]') as HTMLButtonElement;
+    expect(closeBtn).toBeTruthy();
+    expect(closeBtn.textContent).toBe("×");
+
+    // Add a second session
+    await act(async () => {
+      app.newDocument({ width: 300, height: 300, name: "Second.png" });
+    });
+
+    expect(app.sessions.length).toBe(2);
+    expect(imagelist.classList.contains("has-many")).toBe(true);
+
+    // Re-query current elements after re-render
+    const curSelect = imagelist.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
+    const curNewBtn = imagelist.querySelector('[data-testid="mobile-new-tab-button"]') as HTMLButtonElement;
+    const curCloseBtn = imagelist.querySelector('[data-testid="mobile-close-tab-button"]') as HTMLButtonElement;
+
+    // Dropdown now lists both sessions
+    const sessionOpts = [...curSelect.options].filter((o) => !o.value.startsWith("__"));
+    expect(sessionOpts.length).toBe(2);
+    expect(curSelect.value).toBe(app.activeSessionId);
+
+    // Mark active session dirty: dirty * prefix appears
+    app.document.dirty = true;
+    app.notify("document");
+    const updatedSelect = imagelist.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
+    const activeOpt = [...updatedSelect.options].find((o) => o.value === app.activeSessionId);
+    expect(activeOpt?.textContent).toContain("*");
+    expect(activeOpt?.textContent).toContain("Second.png");
+
+    // Switch active session via dropdown
+    const firstSession = app.sessions[0];
+    updatedSelect.value = firstSession.id;
+    updatedSelect.dispatchEvent(new Event("change"));
+    expect(app.activeSessionId).toBe(firstSession.id);
+
+    // Clicking New Tab button opens new dialog
+    curNewBtn.click();
+    expect(app.dialog).toEqual({ type: "new" });
+    app.closeDialog();
+
+    // Clicking Close Tab button closes active session
+    expect(app.sessions.length).toBe(2);
+    curCloseBtn.click();
+    expect(app.sessions.length).toBe(1);
+    expect(app.activeSessionId).not.toBe(firstSession.id);
+  });
+
+  it("supports close actions inside the mobile dropdown", async () => {
+    stubViewport(390, 844, true);
+    applyChromePhase();
+
+    await act(async () => {
+      mountShell(document.getElementById("app")!, app);
+    });
+
+    await act(async () => {
+      app.newDocument({ width: 200, height: 200, name: "DocB.png" });
+      app.newDocument({ width: 200, height: 200, name: "DocC.png" });
+    });
+    expect(app.sessions.length).toBe(3);
+
+    const select = document.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+
+    // Close active document via dropdown action
+    const activeId = app.activeSessionId;
+    select.value = "__close_active__";
+    select.dispatchEvent(new Event("change"));
+    expect(app.sessions.some((s) => s.id === activeId)).toBe(false);
+    expect(app.sessions.length).toBe(2);
+
+    // Close per-item via dropdown action
+    const targetSession = app.sessions.find((s) => s.id !== app.activeSessionId)!;
+    select.value = `__close__:${targetSession.id}`;
+    select.dispatchEvent(new Event("change"));
+    expect(app.sessions.some((s) => s.id === targetSession.id)).toBe(false);
+    expect(app.sessions.length).toBe(1);
+  });
 });
