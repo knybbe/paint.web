@@ -14,7 +14,7 @@ import {
   unbindSystemTheme,
 } from "./core/theme";
 import { idbGet, idbSet, pushRecentFile, type RecentFile } from "./core/idb";
-import { syncSaveDocument } from "./core/sync";
+import { documentFromSyncPayload, localSync, syncSaveDocument, type SyncedDocumentPayload } from "./core/sync";
 import {
   applyDocument,
   loadWorkspace,
@@ -1094,6 +1094,35 @@ export class AppState extends EventTarget {
     img.src = canvas.toDataURL("image/png");
   }
 
+
+  async openSyncedDocument(docId: string): Promise<boolean> {
+    const existing = this.sessions.find((s) => s.id === docId);
+    if (existing) {
+      this.activateSession(docId);
+      return true;
+    }
+    try {
+      const envelope = await localSync.get<SyncedDocumentPayload>("documents", docId);
+      if (!envelope || !envelope.payload) return false;
+      const doc = documentFromSyncPayload(envelope.payload);
+      const session = this.wrap(doc);
+      session.id = docId;
+      noteSessionId(docId);
+      this.sessions.push(session);
+      this.activeSessionId = session.id;
+      this.updateTitle();
+      this.notify("sessions");
+      this.notify("document");
+      this.notify("history");
+      this.notify("selection");
+      this.notify("viewport");
+      this.notify("layers");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   openDialog(dialog: DialogState): void {
     this.dialog = dialog;
     this.notify("dialog");
@@ -1126,4 +1155,5 @@ export type DialogState =
   | { type: "shortcuts" }
   | { type: "download"; format: SaveFormat }
   | { type: "rotateZoom" }
-  | { type: "sync" };
+  | { type: "sync" }
+  | { type: "explorer" };

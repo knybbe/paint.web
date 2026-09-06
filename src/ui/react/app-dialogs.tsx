@@ -21,6 +21,7 @@ import { Input } from "@/ui/react/components/ui/input";
 import { Label } from "@/ui/react/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/react/components/ui/select";
 import { Slider } from "@/ui/react/components/ui/slider";
+import { ExplorerDialog } from "@/ui/react/explorer-dialog";
 import { useAppEvent } from "@/ui/react/use-app";
 
 const DIALOG_BOX =
@@ -900,5 +901,6 @@ export function AppDialogs({ app }: { app: AppState }) {
   if (d.type === "download") return <DownloadDialog app={app} format={d.format} />;
   if (d.type === "rotateZoom") return <RotateZoomDialog app={app} />;
   if (d.type === "sync") return <SyncDialog app={app} />;
+  if (d.type === "explorer") return <ExplorerDialog app={app} />;
   return null;
 }
