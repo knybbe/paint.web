@@ -43,6 +43,9 @@ describe("WebMCP Tool Registry & Tools", () => {
     expect(toolNames.has("crop_to_selection")).toBe(true);
     expect(toolNames.has("undo")).toBe(true);
     expect(toolNames.has("redo")).toBe(true);
+    expect(toolNames.has("get_history")).toBe(true);
+    expect(toolNames.has("jump_to_history")).toBe(true);
+    expect(toolNames.has("delete_history_entry")).toBe(true);
     expect(toolNames.has("export_image_data_url")).toBe(true);
     expect(toolNames.has("get_sync_status")).toBe(true);
     expect(toolNames.has("trigger_sync")).toBe(true);
@@ -151,5 +154,75 @@ describe("WebMCP Tool Registry & Tools", () => {
     const triggerRes = (await ctx.executeTool("trigger_sync")) as any;
     expect(triggerRes).toBeDefined();
     expect(triggerRes.status).toBeDefined();
+  });
+
+  it("manages history with get_history, jump_to_history, non-destructive branching, and delete_history_entry", async () => {
+    registerWebMcpTools(app);
+    const ctx = ensureWebMcpPolyfill();
+
+    // 1. Initial history check
+    const initialHist = (await ctx.executeTool("get_history")) as any;
+    expect(initialHist.position).toBe(0);
+    expect(initialHist.canUndo).toBe(false);
+    expect(initialHist.timeline).toHaveLength(1);
+    expect(initialHist.timeline[0].name).toBe("New Image");
+
+    // 2. Perform two edits: draw stroke, then draw shape
+    await ctx.executeTool("draw_stroke", {
+      points: [{ x: 5, y: 5 }, { x: 15, y: 15 }],
+      kind: "brush",
+      color: "#ff0000",
+      size: 2,
+    });
+    await ctx.executeTool("draw_shape", {
+      shape: "rectangle",
+      x0: 10,
+      y0: 10,
+      x1: 25,
+      y1: 25,
+      color: "#00ff00",
+      mode: "filled",
+    });
+
+    const histAfterEdits = (await ctx.executeTool("get_history")) as any;
+    expect(histAfterEdits.position).toBe(2);
+    expect(histAfterEdits.canUndo).toBe(true);
+    expect(histAfterEdits.timeline).toHaveLength(3);
+
+    // 3. Undo one step
+    const undoRes = (await ctx.executeTool("undo")) as any;
+    expect(undoRes.success).toBe(true);
+    expect(app.history.position).toBe(1);
+
+    // 4. Draw new shape: branches non-destructively!
+    await ctx.executeTool("draw_shape", {
+      shape: "ellipse",
+      x0: 2,
+      y0: 2,
+      x1: 8,
+      y1: 8,
+      color: "#0000ff",
+      mode: "outline",
+    });
+
+    const branchedHist = (await ctx.executeTool("get_history")) as any;
+    // Appended branch root and new edit without destroying prior branch
+    expect(branchedHist.timeline.length).toBeGreaterThanOrEqual(4);
+    expect(branchedHist.canUndo).toBe(true);
+
+    // 5. Jump back to alternate branch step
+    const jumpRes = (await ctx.executeTool("jump_to_history", { index: 2 })) as any;
+    expect(jumpRes.success).toBe(true);
+    expect(jumpRes.position).toBe(2);
+
+    // 6. Safe delete: cannot delete index 0 (baseline)
+    const deleteZero = (await ctx.executeTool("delete_history_entry", { index: 0 })) as any;
+    expect(deleteZero.success).toBe(false);
+
+    // 7. Safe delete: delete future/current entry
+    const countBefore = app.history.timeline.length;
+    const deleteRes = (await ctx.executeTool("delete_history_entry", { index: 2 })) as any;
+    expect(deleteRes.success).toBe(true);
+    expect(app.history.timeline.length).toBe(countBefore - 1);
   });
 });
