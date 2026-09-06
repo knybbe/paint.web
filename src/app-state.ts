@@ -39,7 +39,6 @@ import {
   extensionFor,
   formatFromName,
   pickOpenFiles,
-  pickSaveFile,
   type SaveFormat,
 } from "./core/file-io";
 import { extractSelection, getMemoryClipboard, readClipboardImage, setMemoryClipboard, writeClipboardImage } from "./core/clipboard";
@@ -368,13 +367,28 @@ export class AppState extends EventTarget {
     }
   }
 
-  async closeSession(id?: string, force = false): Promise<void> {
+  renameSession(id: string, newName: string): void {
+    const s = this.sessions.find((sess) => sess.id === id);
+    const trimmed = newName.trim();
+    if (!s || !trimmed) return;
+    s.document.name = trimmed;
+    if (s.id === this.activeSessionId) {
+      this.updateTitle();
+    }
+    this.notify("document");
+    this.notify("sessions");
+  }
+
+  async closeSession(id?: string, _force = false): Promise<void> {
     const sid = id ?? this.activeSessionId;
-    const idx = this.sessions.findIndex((s) => s.id === sid);
-    if (idx < 0) return;
-    if (!force && this.sessions[idx].document.dirty) {
-      this.openDialog({ type: "confirmClose", sessionId: sid });
-      return;
+    const s = this.sessions.find((sess) => sess.id === sid);
+    if (!s) return;
+    // Soft-close: persist document snapshot to cache before closing, preserving browser cache
+    try {
+      await idbSet("autosave", sid, serializeDocument(s.document));
+      void syncSaveDocument(sid, s.document);
+    } catch {
+      /* non-fatal */
     }
     this.closeSessionFinal(sid);
   }
@@ -388,9 +402,7 @@ export class AppState extends EventTarget {
       this.activeSessionId = this.sessions[Math.min(idx, this.sessions.length - 1)].id;
       this.updateTitle();
     }
-    if (this.dialog?.type === "confirmClose" && this.dialog.sessionId === sid) {
-      this.closeDialog();
-    }
+    void this.flushPersist();
     this.notify("sessions");
     this.notify("document");
     this.notify("history");
@@ -1010,44 +1022,19 @@ export class AppState extends EventTarget {
     }
   }
 
-  async save(saveAs = false): Promise<void> {
-    const format = formatFromName(this.document.name);
-    if (!saveAs && this.session.fileHandle) {
-      const blob = await encodeDocument(this.document, format);
-      await this.session.fileHandle.write(blob);
-      this.document.dirty = false;
-      this.updateTitle();
-      this.notify("sessions");
+  async download(format?: SaveFormat, filename?: string): Promise<void> {
+    const fmt = format ?? formatFromName(this.document.name);
+    if (!format && !filename) {
+      this.openDialog({ type: "download", format: fmt });
       return;
     }
-    this.openDialog({ type: "saveAs", format });
-  }
-
-  async saveWithFormat(format: SaveFormat, filename?: string): Promise<void> {
-    const name = filename ?? this.document.name.replace(/\.[^.]+$/, "") + extensionFor(format);
-    const blob = await encodeDocument(this.document, format);
-    const handle = await pickSaveFile(name, format);
-    if (handle) {
-      const w = await handle.createWritable();
-      await w.write(blob);
-      await w.close();
-      this.session.fileHandle = {
-        name: handle.name,
-        write: async (b) => {
-          const ww = await handle.createWritable();
-          await ww.write(b);
-          await ww.close();
-        },
-      };
-      this.document.name = handle.name;
-    } else {
-      downloadBlob(blob, name);
-      this.document.name = name;
-    }
-    this.document.dirty = false;
-    this.updateTitle();
-    this.notify("sessions");
-    this.notify("document");
+    const ext = extensionFor(fmt);
+    const base = (filename ?? this.document.name).replace(/\.[^.]+$/, "");
+    const finalName = filename ?? (base + ext);
+    const blob = await encodeDocument(this.document, fmt);
+    downloadBlob(blob, finalName);
+    this.statusMessage = `Downloaded ${finalName}`;
+    this.notify("status");
   }
 
   print(): void {
@@ -1098,7 +1085,6 @@ export type DialogState =
   | { type: "about" }
   | { type: "settings" }
   | { type: "shortcuts" }
-  | { type: "saveAs"; format: SaveFormat }
+  | { type: "download"; format: SaveFormat }
   | { type: "rotateZoom" }
-  | { type: "confirmClose"; sessionId: string }
   | { type: "sync" };

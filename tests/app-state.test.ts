@@ -45,4 +45,39 @@ describe("AppState integration", () => {
     app.notify("status");
     expect(app.revision).toBe(start + 1);
   });
+
+  it("renames session and updates title and document name", async () => {
+    const app = new AppState();
+    await app.init();
+    expect(app.document.name).toBe("Untitled.png");
+    app.renameSession(app.activeSessionId, "MyArt.png");
+    expect(app.document.name).toBe("MyArt.png");
+    expect(document.title).toContain("MyArt.png");
+  });
+
+  it("soft-closes session keeping cache without prompt even if dirty", async () => {
+    const app = new AppState();
+    await app.init();
+    app.newDocument({ width: 100, height: 100, name: "Second.png" });
+    expect(app.sessions).toHaveLength(2);
+
+    const targetId = app.activeSessionId;
+    app.document.dirty = true;
+    await app.closeSession(targetId);
+
+    expect(app.dialog).toBeNull();
+    expect(app.sessions.some((s) => s.id === targetId)).toBe(false);
+    expect(app.sessions).toHaveLength(1);
+  });
+
+  it("opens download dialog on download without args, and downloads with format", async () => {
+    const app = new AppState();
+    await app.init();
+    await app.download();
+    expect(app.dialog).toEqual({ type: "download", format: "png" });
+    app.closeDialog();
+
+    await app.download("png", "Custom.png");
+    expect(app.statusMessage).toContain("Downloaded Custom.png");
+  });
 });

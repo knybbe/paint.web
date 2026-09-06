@@ -135,7 +135,7 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     expect(statusbar).toBeTruthy();
   });
 
-  it("renders mobile document switcher dropdown at 390px with open sessions and supports switching, new tab, and close", async () => {
+  it("renders custom chrome-styled tab dropdown at 390px with open tabs only, supporting switching, rename, and soft-close", async () => {
     stubViewport(390, 844, true);
     applyChromePhase();
 
@@ -149,17 +149,13 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     const mobileBar = imagelist.querySelector('[data-testid="mobile-doc-bar"]') as HTMLElement;
     expect(mobileBar).toBeTruthy();
 
-    const select = mobileBar.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    expect(select.options.length).toBeGreaterThanOrEqual(1);
+    const trigger = mobileBar.querySelector('[data-testid="mobile-doc-dropdown-trigger"]') as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    expect(trigger.textContent).toContain(app.document.name);
 
     const newBtn = mobileBar.querySelector('[data-testid="mobile-new-tab-button"]') as HTMLButtonElement;
     expect(newBtn).toBeTruthy();
     expect(newBtn.textContent).toBe("+");
-
-    const closeBtn = mobileBar.querySelector('[data-testid="mobile-close-tab-button"]') as HTMLButtonElement;
-    expect(closeBtn).toBeTruthy();
-    expect(closeBtn.textContent).toBe("×");
 
     // Add a second session
     await act(async () => {
@@ -169,43 +165,67 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     expect(app.sessions.length).toBe(2);
     expect(imagelist.classList.contains("has-many")).toBe(true);
 
-    // Re-query current elements after re-render
-    const curSelect = imagelist.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
-    const curNewBtn = imagelist.querySelector('[data-testid="mobile-new-tab-button"]') as HTMLButtonElement;
-    const curCloseBtn = imagelist.querySelector('[data-testid="mobile-close-tab-button"]') as HTMLButtonElement;
+    // Re-query trigger after re-render
+    const curTrigger = imagelist.querySelector('[data-testid="mobile-doc-dropdown-trigger"]') as HTMLButtonElement;
+    expect(curTrigger.textContent).toContain("Second.png");
 
-    // Dropdown now lists both sessions
-    const sessionOpts = [...curSelect.options].filter((o) => !o.value.startsWith("__"));
-    expect(sessionOpts.length).toBe(2);
-    expect(curSelect.value).toBe(app.activeSessionId);
+    // Click trigger to open custom dropdown
+    curTrigger.click();
+    const menu = imagelist.querySelector('[data-testid="mobile-doc-dropdown-menu"]') as HTMLElement;
+    expect(menu).toBeTruthy();
+    expect(menu.classList.contains("open")).toBe(true);
+
+    // Custom dropdown lists open tabs only (no action items!)
+    const rows = menu.querySelectorAll('[data-testid="mobile-tab-row"]');
+    expect(rows.length).toBe(2);
 
     // Mark active session dirty: dirty * prefix appears
     app.document.dirty = true;
     app.notify("document");
-    const updatedSelect = imagelist.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
-    const activeOpt = [...updatedSelect.options].find((o) => o.value === app.activeSessionId);
-    expect(activeOpt?.textContent).toContain("*");
-    expect(activeOpt?.textContent).toContain("Second.png");
+    const updatedTrigger = imagelist.querySelector('[data-testid="mobile-doc-dropdown-trigger"]') as HTMLButtonElement;
+    expect(updatedTrigger.textContent).toContain("*");
+    expect(updatedTrigger.textContent).toContain("Second.png");
 
-    // Switch active session via dropdown
+    // Switch active session via dropdown item
     const firstSession = app.sessions[0];
-    updatedSelect.value = firstSession.id;
-    updatedSelect.dispatchEvent(new Event("change"));
+    const firstTabBtn = imagelist.querySelector(`[data-testid="mobile-tab-btn"][data-session-id="${firstSession.id}"]`) as HTMLButtonElement;
+    expect(firstTabBtn).toBeTruthy();
+    firstTabBtn.click();
     expect(app.activeSessionId).toBe(firstSession.id);
 
-    // Clicking New Tab button opens new dialog
+    // Per-row rename: click rename button for first session
+    const renameBtn = imagelist.querySelector(`[data-testid="mobile-tab-rename"][data-session-id="${firstSession.id}"]`) as HTMLButtonElement;
+    expect(renameBtn).toBeTruthy();
+    renameBtn.click();
+
+    // Inline rename input appears
+    const renameInput = imagelist.querySelector('[data-testid="mobile-tab-rename-input"]') as HTMLInputElement;
+    expect(renameInput).toBeTruthy();
+    expect(renameInput.value).toBe(firstSession.document.name);
+
+    renameInput.value = "RenamedDoc.png";
+    renameInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(firstSession.document.name).toBe("RenamedDoc.png");
+    expect(app.document.name).toBe("RenamedDoc.png");
+
+    // Clicking New Tab button beside dropdown opens new dialog
+    const curNewBtn = imagelist.querySelector('[data-testid="mobile-new-tab-button"]') as HTMLButtonElement;
     curNewBtn.click();
     expect(app.dialog).toEqual({ type: "new" });
     app.closeDialog();
 
-    // Clicking Close Tab button closes active session
-    expect(app.sessions.length).toBe(2);
-    curCloseBtn.click();
+    // Soft-close: per-row close closes the tab without save prompts
+    const secondSession = app.sessions.find((s) => s.id !== firstSession.id)!;
+    const closeBtn = imagelist.querySelector(`[data-testid="mobile-tab-close"][data-session-id="${secondSession.id}"]`) as HTMLButtonElement;
+    expect(closeBtn).toBeTruthy();
+    await act(async () => {
+      closeBtn.click();
+    });
     expect(app.sessions.length).toBe(1);
-    expect(app.activeSessionId).not.toBe(firstSession.id);
+    expect(app.sessions[0].id).toBe(firstSession.id);
   });
 
-  it("supports close actions inside the mobile dropdown", async () => {
+  it("supports soft-close keeping cache without save prompts even when document is dirty", async () => {
     stubViewport(390, 844, true);
     applyChromePhase();
 
@@ -219,21 +239,28 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     });
     expect(app.sessions.length).toBe(3);
 
-    const select = document.querySelector('[data-testid="mobile-doc-select"]') as HTMLSelectElement;
-    expect(select).toBeTruthy();
+    // Mark all documents dirty
+    for (const s of app.sessions) {
+      s.document.dirty = true;
+    }
 
-    // Close active document via dropdown action
-    const activeId = app.activeSessionId;
-    select.value = "__close_active__";
-    select.dispatchEvent(new Event("change"));
-    expect(app.sessions.some((s) => s.id === activeId)).toBe(false);
+    // Open dropdown
+    const trigger = document.querySelector('[data-testid="mobile-doc-dropdown-trigger"]') as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    trigger.click();
+
+    // Soft-close a tab: should immediately close without prompting confirmClose
+    const targetSession = app.sessions[1];
+    const targetId = targetSession.id;
+    const closeBtn = document.querySelector(`[data-testid="mobile-tab-close"][data-session-id="${targetId}"]`) as HTMLButtonElement;
+    expect(closeBtn).toBeTruthy();
+
+    await act(async () => {
+      closeBtn.click();
+    });
+
+    expect(app.dialog).toBeNull(); // No confirmClose dialog!
+    expect(app.sessions.some((s) => s.id === targetId)).toBe(false);
     expect(app.sessions.length).toBe(2);
-
-    // Close per-item via dropdown action
-    const targetSession = app.sessions.find((s) => s.id !== app.activeSessionId)!;
-    select.value = `__close__:${targetSession.id}`;
-    select.dispatchEvent(new Event("change"));
-    expect(app.sessions.some((s) => s.id === targetSession.id)).toBe(false);
-    expect(app.sessions.length).toBe(1);
   });
 });

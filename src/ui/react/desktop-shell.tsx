@@ -211,11 +211,11 @@ function TitleRow({ app }: { app: AppState }) {
         <button
           type="button"
           className="chrome-icon-btn"
-          title="Save (Ctrl+S)"
-          data-testid="ribbon-save"
-          onClick={() => void app.save(false)}
+          title="Download Export (Ctrl+Shift+S)"
+          data-testid="ribbon-download"
+          onClick={() => void app.download()}
         >
-          <SvgIcon svg={UI_ICONS.save} />
+          <SvgIcon svg={UI_ICONS.download} />
         </button>
         <button
           type="button"

@@ -1178,16 +1178,15 @@ html[data-chrome="phone"] {
     width: 100%;
     min-width: 0;
   }
-  .mobile-doc-select-wrap {
+  .mobile-doc-dropdown-wrap {
+    position: relative;
     flex: 1 1 auto;
     min-width: 0;
-    display: flex;
-    align-items: center;
   }
-  .mobile-doc-select {
+  .mobile-doc-dropdown-trigger {
     width: 100%;
     height: 30px;
-    padding: 0 26px 0 10px;
+    padding: 0 10px;
     border-radius: var(--pdn-radius-md, 6px);
     border: 1px solid var(--pdn-border);
     background: var(--pdn-bg-3);
@@ -1195,20 +1194,121 @@ html[data-chrome="phone"] {
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    background-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    user-select: none;
+    box-sizing: border-box;
   }
-  .mobile-doc-select:focus {
+  .mobile-doc-dropdown-trigger:focus,
+  .mobile-doc-dropdown-trigger:focus-visible {
     outline: none;
     border-color: var(--pdn-accent);
     box-shadow: 0 0 0 1px var(--pdn-accent);
+  }
+  .mobile-doc-dropdown-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    text-align: left;
+  }
+  .mobile-doc-dropdown-chevron {
+    flex: 0 0 auto;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+  }
+  .mobile-doc-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 200px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--pdn-bg-2);
+    border: 1px solid var(--pdn-border);
+    border-radius: var(--pdn-radius-md, 6px);
+    box-shadow: var(--pdn-shadow-md, 0 4px 12px rgba(0, 0, 0, 0.25));
+    z-index: 100;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .mobile-doc-tab-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    min-height: 32px;
+    box-sizing: border-box;
+  }
+  .mobile-doc-tab-row:hover,
+  .mobile-doc-tab-row:focus-within {
+    background: var(--pdn-hover);
+  }
+  .mobile-doc-tab-row.active {
+    background: var(--pdn-accent-soft);
+  }
+  .mobile-tab-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--pdn-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  .mobile-doc-tab-row.active .mobile-tab-btn {
+    color: var(--pdn-accent);
+    font-weight: 600;
+  }
+  .mobile-tab-rename-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 26px;
+    padding: 0 6px;
+    background: var(--pdn-bg-1);
+    border: 1px solid var(--pdn-accent);
+    border-radius: 4px;
+    color: var(--pdn-text);
+    font-size: 13px;
+    outline: none;
+  }
+  .mobile-tab-action-btn {
+    flex: 0 0 26px;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--pdn-text-dim);
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+    user-select: none;
+  }
+  .mobile-tab-action-btn:hover {
+    background: var(--pdn-bg-3);
+    color: var(--pdn-text);
+  }
+  .mobile-tab-close-btn:hover {
+    color: var(--pdn-danger);
+    background: color-mix(in srgb, var(--pdn-danger) 15%, transparent);
   }
   .mobile-doc-btn {
     display: inline-flex;
@@ -1231,11 +1331,6 @@ html[data-chrome="phone"] {
   .mobile-doc-btn:active {
     background: var(--pdn-hover);
     color: var(--pdn-text);
-  }
-  .mobile-doc-close:hover,
-  .mobile-doc-close:active {
-    color: var(--pdn-danger);
-    border-color: var(--pdn-danger);
   }
   .canvas-col {
     flex: 1 1 auto;

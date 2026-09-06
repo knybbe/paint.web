@@ -47,6 +47,8 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
     host.style.cursor = tool.cursor || "crosshair";
   };
 
+  let mobileDropdownOpen = false;
+  let editingSessionId: string | null = null;
 
   const paintTabs = () => {
     tabs.innerHTML = "";
@@ -83,73 +85,142 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
     mobileBar.className = "mobile-doc-bar";
     mobileBar.setAttribute("data-testid", "mobile-doc-bar");
 
-    const selectWrap = document.createElement("div");
-    selectWrap.className = "mobile-doc-select-wrap";
+    const dropdownWrap = document.createElement("div");
+    dropdownWrap.className = "mobile-doc-dropdown-wrap";
+    dropdownWrap.setAttribute("data-testid", "mobile-doc-dropdown-wrap");
 
-    const select = document.createElement("select");
-    select.className = "mobile-doc-select";
-    select.setAttribute("data-testid", "mobile-doc-select");
-    select.setAttribute("aria-label", "Switch document");
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "mobile-doc-dropdown-trigger" + (mobileDropdownOpen ? " open" : "");
+    trigger.setAttribute("data-testid", "mobile-doc-dropdown-trigger");
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", mobileDropdownOpen ? "true" : "false");
+    trigger.setAttribute("aria-label", "Switch document");
+
+    const activeSession = app.sessions.find((s) => s.id === app.activeSessionId) ?? app.sessions[0];
+    const triggerLabel = document.createElement("span");
+    triggerLabel.className = "mobile-doc-dropdown-label";
+    triggerLabel.setAttribute("data-testid", "mobile-doc-label");
+    const activePrefix = activeSession?.document.dirty ? "* " : "";
+    triggerLabel.textContent = `${activePrefix}${activeSession?.document.name ?? "Document"}`;
+
+    const triggerChevron = document.createElement("span");
+    triggerChevron.className = "mobile-doc-dropdown-chevron";
+    triggerChevron.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+
+    trigger.append(triggerLabel, triggerChevron);
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      mobileDropdownOpen = !mobileDropdownOpen;
+      paintTabs();
+    });
+    dropdownWrap.append(trigger);
+
+    const menu = document.createElement("div");
+    menu.className = "mobile-doc-dropdown-menu" + (mobileDropdownOpen ? " open" : "");
+    menu.setAttribute("data-testid", "mobile-doc-dropdown-menu");
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("aria-label", "Open tabs");
+    if (!mobileDropdownOpen) {
+      menu.style.display = "none";
+    }
 
     for (const s of app.sessions) {
-      const opt = document.createElement("option");
-      opt.value = s.id;
-      const prefix = s.document.dirty ? "* " : "";
-      opt.textContent = `${prefix}${s.document.name}`;
-      if (s.id === app.activeSessionId) {
-        opt.selected = true;
-      }
-      select.append(opt);
-    }
+      const row = document.createElement("div");
+      row.className = "mobile-doc-tab-row" + (s.id === app.activeSessionId ? " active" : "");
+      row.setAttribute("data-testid", "mobile-tab-row");
+      row.setAttribute("data-session-id", s.id);
 
-    const actionGroup = document.createElement("optgroup");
-    actionGroup.label = "Actions";
+      if (editingSessionId === s.id) {
+        const renameInput = document.createElement("input");
+        renameInput.type = "text";
+        renameInput.className = "mobile-tab-rename-input";
+        renameInput.setAttribute("data-testid", "mobile-tab-rename-input");
+        renameInput.value = s.document.name;
+        renameInput.setAttribute("aria-label", "Document name");
 
-    const closeCurrent = document.createElement("option");
-    closeCurrent.value = "__close_active__";
-    closeCurrent.textContent = `Close "${app.document.name}"`;
-    actionGroup.append(closeCurrent);
+        const commitRename = (val: string) => {
+          const trimmed = val.trim();
+          editingSessionId = null;
+          if (trimmed && trimmed !== s.document.name) {
+            app.renameSession(s.id, trimmed);
+          } else {
+            paintTabs();
+          }
+        };
 
-    if (app.sessions.length > 1) {
-      const closeOthers = document.createElement("option");
-      closeOthers.value = "__close_others__";
-      closeOthers.textContent = "Close other tabs";
-      actionGroup.append(closeOthers);
+        renameInput.addEventListener("click", (e) => e.stopPropagation());
+        renameInput.addEventListener("keydown", (e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitRename(renameInput.value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            editingSessionId = null;
+            paintTabs();
+          }
+        });
+        renameInput.addEventListener("blur", () => {
+          commitRename(renameInput.value);
+        });
 
-      for (const s of app.sessions) {
-        if (s.id !== app.activeSessionId) {
-          const closeItem = document.createElement("option");
-          closeItem.value = `__close__:${s.id}`;
-          const prefix = s.document.dirty ? "* " : "";
-          closeItem.textContent = `Close "${prefix}${s.document.name}"`;
-          actionGroup.append(closeItem);
-        }
-      }
-    }
-    select.append(actionGroup);
-
-    select.addEventListener("change", () => {
-      const val = select.value;
-      if (!val) return;
-      if (val === "__close_active__") {
-        select.value = app.activeSessionId;
-        void app.closeSession(app.activeSessionId);
-      } else if (val === "__close_others__") {
-        select.value = app.activeSessionId;
-        const active = app.activeSessionId;
-        for (const s of [...app.sessions]) {
-          if (s.id !== active) void app.closeSession(s.id);
-        }
-      } else if (val.startsWith("__close__:")) {
-        select.value = app.activeSessionId;
-        const targetId = val.slice("__close__:".length);
-        void app.closeSession(targetId);
+        row.append(renameInput);
+        setTimeout(() => {
+          renameInput.focus();
+          renameInput.select();
+        }, 0);
       } else {
-        app.activateSession(val);
-      }
-    });
+        const tabBtn = document.createElement("button");
+        tabBtn.type = "button";
+        tabBtn.className = "mobile-tab-btn";
+        tabBtn.setAttribute("data-testid", "mobile-tab-btn");
+        tabBtn.setAttribute("data-session-id", s.id);
+        const prefix = s.document.dirty ? "* " : "";
+        tabBtn.textContent = `${prefix}${s.document.name}`;
+        tabBtn.title = s.document.name;
+        tabBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          app.activateSession(s.id);
+          mobileDropdownOpen = false;
+          paintTabs();
+        });
+        row.append(tabBtn);
 
-    selectWrap.append(select);
+        const renameBtn = document.createElement("button");
+        renameBtn.type = "button";
+        renameBtn.className = "mobile-tab-action-btn mobile-tab-rename-btn";
+        renameBtn.setAttribute("data-testid", "mobile-tab-rename");
+        renameBtn.setAttribute("data-session-id", s.id);
+        renameBtn.setAttribute("aria-label", `Rename "${s.document.name}"`);
+        renameBtn.title = "Rename tab";
+        renameBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
+        renameBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          editingSessionId = s.id;
+          paintTabs();
+        });
+        row.append(renameBtn);
+      }
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "mobile-tab-action-btn mobile-tab-close-btn";
+      closeBtn.setAttribute("data-testid", "mobile-tab-close");
+      closeBtn.setAttribute("data-session-id", s.id);
+      closeBtn.setAttribute("aria-label", `Close "${s.document.name}"`);
+      closeBtn.title = "Close tab";
+      closeBtn.textContent = "×";
+      closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (editingSessionId === s.id) editingSessionId = null;
+        void app.closeSession(s.id);
+      });
+      row.append(closeBtn);
+
+      menu.append(row);
+    }
+    dropdownWrap.append(menu);
 
     const mobileNewBtn = document.createElement("button");
     mobileNewBtn.type = "button";
@@ -162,18 +233,7 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       app.openDialog({ type: "new" });
     });
 
-    const mobileCloseBtn = document.createElement("button");
-    mobileCloseBtn.type = "button";
-    mobileCloseBtn.className = "mobile-doc-btn mobile-doc-close";
-    mobileCloseBtn.title = "Close image (Ctrl+W)";
-    mobileCloseBtn.setAttribute("data-testid", "mobile-close-tab-button");
-    mobileCloseBtn.setAttribute("aria-label", "Close active image");
-    mobileCloseBtn.textContent = "×";
-    mobileCloseBtn.addEventListener("click", () => {
-      void app.closeSession(app.activeSessionId);
-    });
-
-    mobileBar.append(selectWrap, mobileNewBtn, mobileCloseBtn);
+    mobileBar.append(dropdownWrap, mobileNewBtn);
     tabs.append(mobileBar);
 
     tabs.classList.toggle("has-many", app.sessions.length > 1);
@@ -489,6 +549,20 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   window.addEventListener("pdn-chrome", () => {
     resize();
     paintTabs();
+  });
+  window.addEventListener("click", (e) => {
+    if (mobileDropdownOpen && !tabs.contains(e.target as Node)) {
+      mobileDropdownOpen = false;
+      editingSessionId = null;
+      paintTabs();
+    }
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && (mobileDropdownOpen || editingSessionId)) {
+      mobileDropdownOpen = false;
+      editingSessionId = null;
+      paintTabs();
+    }
   });
 
   app.addEventListener("sessions", paintTabs);

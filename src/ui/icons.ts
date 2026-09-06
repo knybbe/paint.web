@@ -141,6 +141,10 @@ export const UI_ICONS: Record<string, string> = {
      <rect x="7" y="13.2" width="10" height="7.2" fill="#dbeafe"/>
      <rect x="7.4" y="4.2" width="9.2" height="6.2" fill="#93c5fd"/>`,
   ),
+  download: icon(
+    `<path d="M12 3.5v10.5m0 0l-3.8-3.8m3.8 3.8l3.8-3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+     <path d="M4.5 17.5v1.2a1.8 1.8 0 001.8 1.8h11.4a1.8 1.8 0 001.8-1.8v-1.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+  ),
   sync: icon(
     `<path d="M4 12a8 8 0 0114.93-4M20 12a8 8 0 01-14.93 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
      <path d="M19 4v4h-4M5 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`,

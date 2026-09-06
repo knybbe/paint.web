@@ -223,4 +223,40 @@ describe("Desktop editor shell & mobile deck", () => {
     expect(document.querySelector('[data-testid="mobile-sheet-container"]')).toBeNull();
     expect(document.querySelector('[data-testid="mobile-sheet-backdrop"]')).toBeNull();
   });
+
+  it("desktop ribbon has Download button and no Save button", async () => {
+    expect(document.querySelector('[data-testid="ribbon-save"]')).toBeNull();
+    const dlBtn = document.querySelector('[data-testid="ribbon-download"]');
+    expect(dlBtn).toBeTruthy();
+
+    await act(async () => {
+      click(dlBtn);
+    });
+    expect(app.dialog?.type).toBe("download");
+    const dialog = document.querySelector('[data-testid="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog?.textContent).toContain("Download Export");
+  });
+
+  it("desktop horizontal tab close button performs soft-close keeping cache", async () => {
+    await act(async () => {
+      app.newDocument({ width: 200, height: 200, name: "Tab2.png" });
+    });
+    expect(app.sessions).toHaveLength(2);
+
+    const tabs = document.querySelectorAll(".imagetab");
+    expect(tabs.length).toBe(2);
+
+    // Click 'x' on second tab
+    const secondTab = tabs[1];
+    const xBtn = secondTab.querySelector(".x");
+    expect(xBtn).toBeTruthy();
+
+    await act(async () => {
+      click(xBtn);
+    });
+
+    expect(app.sessions).toHaveLength(1);
+    expect(app.dialog).toBeNull(); // No save prompt!
+  });
 });
