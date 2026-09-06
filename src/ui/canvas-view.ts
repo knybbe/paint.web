@@ -61,7 +61,7 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       x.textContent = "×";
       x.addEventListener("click", (e) => {
         e.stopPropagation();
-        app.closeSession(s.id);
+        void app.closeSession(s.id);
       });
       t.append(name, x);
       t.addEventListener("click", () => app.activateSession(s.id));
@@ -78,6 +78,104 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
       app.openDialog({ type: "new" });
     });
     tabs.append(newTabBtn);
+
+    const mobileBar = document.createElement("div");
+    mobileBar.className = "mobile-doc-bar";
+    mobileBar.setAttribute("data-testid", "mobile-doc-bar");
+
+    const selectWrap = document.createElement("div");
+    selectWrap.className = "mobile-doc-select-wrap";
+
+    const select = document.createElement("select");
+    select.className = "mobile-doc-select";
+    select.setAttribute("data-testid", "mobile-doc-select");
+    select.setAttribute("aria-label", "Switch document");
+
+    for (const s of app.sessions) {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      const prefix = s.document.dirty ? "* " : "";
+      opt.textContent = `${prefix}${s.document.name}`;
+      if (s.id === app.activeSessionId) {
+        opt.selected = true;
+      }
+      select.append(opt);
+    }
+
+    const actionGroup = document.createElement("optgroup");
+    actionGroup.label = "Actions";
+
+    const closeCurrent = document.createElement("option");
+    closeCurrent.value = "__close_active__";
+    closeCurrent.textContent = `Close "${app.document.name}"`;
+    actionGroup.append(closeCurrent);
+
+    if (app.sessions.length > 1) {
+      const closeOthers = document.createElement("option");
+      closeOthers.value = "__close_others__";
+      closeOthers.textContent = "Close other tabs";
+      actionGroup.append(closeOthers);
+
+      for (const s of app.sessions) {
+        if (s.id !== app.activeSessionId) {
+          const closeItem = document.createElement("option");
+          closeItem.value = `__close__:${s.id}`;
+          const prefix = s.document.dirty ? "* " : "";
+          closeItem.textContent = `Close "${prefix}${s.document.name}"`;
+          actionGroup.append(closeItem);
+        }
+      }
+    }
+    select.append(actionGroup);
+
+    select.addEventListener("change", () => {
+      const val = select.value;
+      if (!val) return;
+      if (val === "__close_active__") {
+        select.value = app.activeSessionId;
+        void app.closeSession(app.activeSessionId);
+      } else if (val === "__close_others__") {
+        select.value = app.activeSessionId;
+        const active = app.activeSessionId;
+        for (const s of [...app.sessions]) {
+          if (s.id !== active) void app.closeSession(s.id);
+        }
+      } else if (val.startsWith("__close__:")) {
+        select.value = app.activeSessionId;
+        const targetId = val.slice("__close__:".length);
+        void app.closeSession(targetId);
+      } else {
+        app.activateSession(val);
+      }
+    });
+
+    selectWrap.append(select);
+
+    const mobileNewBtn = document.createElement("button");
+    mobileNewBtn.type = "button";
+    mobileNewBtn.className = "mobile-doc-btn mobile-doc-new";
+    mobileNewBtn.title = "New image (Ctrl+N)";
+    mobileNewBtn.setAttribute("data-testid", "mobile-new-tab-button");
+    mobileNewBtn.setAttribute("aria-label", "New image");
+    mobileNewBtn.textContent = "+";
+    mobileNewBtn.addEventListener("click", () => {
+      app.openDialog({ type: "new" });
+    });
+
+    const mobileCloseBtn = document.createElement("button");
+    mobileCloseBtn.type = "button";
+    mobileCloseBtn.className = "mobile-doc-btn mobile-doc-close";
+    mobileCloseBtn.title = "Close image (Ctrl+W)";
+    mobileCloseBtn.setAttribute("data-testid", "mobile-close-tab-button");
+    mobileCloseBtn.setAttribute("aria-label", "Close active image");
+    mobileCloseBtn.textContent = "×";
+    mobileCloseBtn.addEventListener("click", () => {
+      void app.closeSession(app.activeSessionId);
+    });
+
+    mobileBar.append(selectWrap, mobileNewBtn, mobileCloseBtn);
+    tabs.append(mobileBar);
+
     tabs.classList.toggle("has-many", app.sessions.length > 1);
   };
 
@@ -388,7 +486,10 @@ export function mountCanvas(root: HTMLElement, app: AppState): void {
   ro.observe(root);
   ro.observe(host);
   window.addEventListener("resize", resize);
-  window.addEventListener("pdn-chrome", resize);
+  window.addEventListener("pdn-chrome", () => {
+    resize();
+    paintTabs();
+  });
 
   app.addEventListener("sessions", paintTabs);
   app.addEventListener("document", paintTabs);
