@@ -50,6 +50,7 @@ export function bindShortcuts(app: AppState): void {
     if (ctrl && key === "o") return run("file.open");
     if (ctrl && shift && key === "s") return run("file.download");
     if (ctrl && shift && key === "u") return run("file.sync");
+    if (ctrl && shift && key === "e") return run("file.explorer");
     if (ctrl && key === "s") return run("file.download");
     if (ctrl && (key === "w" || e.key === "F4")) return go(() => app.closeSession());
     if (ctrl && key === "p") return go(() => app.print());

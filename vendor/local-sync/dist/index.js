@@ -41,6 +41,20 @@ async function* iterateEntries(dir) {
 function isFolderSyncSupported() {
   return typeof window !== "undefined" && typeof window.showDirectoryPicker === "function" && typeof indexedDB !== "undefined";
 }
+function isNotFoundError(error) {
+  if (!error) return false;
+  if (error instanceof DOMException && error.name === "NotFoundError") {
+    return true;
+  }
+  if (typeof error === "object" && "name" in error && error.name === "NotFoundError") {
+    return true;
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes("not found") || msg.includes("could not be found") || msg.includes("no such file or directory");
+  }
+  return false;
+}
 async function ensurePermission(handle, mode = "readwrite") {
   const withPerm = handle;
   if (typeof withPerm.queryPermission === "function") {
@@ -58,18 +72,86 @@ async function pickDirectory(id = "localsync") {
   const picker = window.showDirectoryPicker;
   return picker({ id, mode: "readwrite" });
 }
-async function getDir(parent, name, create) {
-  return parent.getDirectoryHandle(name, { create });
+var inflightDirOps = /* @__PURE__ */ new WeakMap();
+async function getDir(parent, name, create = false) {
+  if (!parent) {
+    throw new Error("Parent directory handle is required");
+  }
+  const trimmed = name.trim();
+  if (!trimmed || /[/\\]/.test(trimmed) || trimmed === "." || trimmed === "..") {
+    throw new Error(`Invalid directory name: "${name}"`);
+  }
+  const key = trimmed.toLowerCase();
+  let locks = inflightDirOps.get(parent);
+  if (!locks) {
+    locks = /* @__PURE__ */ new Map();
+    inflightDirOps.set(parent, locks);
+  }
+  const currentInflight = locks.get(key);
+  if (currentInflight) {
+    try {
+      return await currentInflight;
+    } catch (e) {
+      if (!create) throw e;
+    }
+  }
+  const task = (async () => {
+    let exactMatch = null;
+    let caseMatch = null;
+    for await (const [entryName, handle] of iterateEntries(parent)) {
+      if (handle.kind === "directory") {
+        if (entryName === trimmed) {
+          exactMatch = handle;
+          break;
+        }
+        if (entryName.toLowerCase() === key && !caseMatch) {
+          caseMatch = handle;
+        }
+      }
+    }
+    const existing = exactMatch ?? caseMatch;
+    if (existing) {
+      return existing;
+    }
+    if (!create) {
+      return parent.getDirectoryHandle(trimmed, { create: false });
+    }
+    return parent.getDirectoryHandle(trimmed, { create: true });
+  })();
+  locks.set(key, task);
+  try {
+    return await task;
+  } finally {
+    locks.delete(key);
+  }
 }
-async function getAppDir(root, appId, create) {
-  const ls = await getDir(root, LOCALSYNC_DIR, create);
-  return getDir(ls, appId, create);
+async function getAppDir(root, appRootName, create = false) {
+  const trimmed = appRootName?.trim();
+  if (!trimmed || /[/\\]/.test(trimmed)) {
+    throw new Error(`getAppDir: invalid appRootName "${appRootName}"`);
+  }
+  return getDir(root, trimmed, create);
 }
 async function writeJsonFile(dir, name, data) {
   const fh = await dir.getFileHandle(name, { create: true });
-  const writable = await fh.createWritable();
-  await writable.write(JSON.stringify(data, null, 2));
-  await writable.close();
+  let writable = null;
+  try {
+    writable = await fh.createWritable();
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+  } catch (err) {
+    if (writable) {
+      try {
+        await writable.abort();
+      } catch {
+      }
+    }
+    try {
+      await dir.removeEntry(name);
+    } catch {
+    }
+    throw err;
+  }
 }
 function safeFileName(id) {
   return id.replace(/[/\\?%*:|"<>]/g, "_");
@@ -112,10 +194,11 @@ async function writeDocToFolder(appDir, doc) {
   const colDir = await getDir(collections, doc.collection, true);
   await writeJsonFile(colDir, `${safeFileName(doc.id)}.json`, doc);
 }
-async function writeMeta(appDir, appId) {
+async function writeMeta(appDir, appRootName) {
   const meta = {
     version: 1,
-    appId,
+    appRootName,
+    appId: appRootName,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   await writeJsonFile(appDir, "meta.json", meta);
@@ -367,13 +450,16 @@ function pickNewer(a, b) {
 }
 
 // src/createLocalSync.ts
+var STALE_HANDLE_MESSAGE = "Sync folder not found or moved. Please reconnect or change folder.";
 function createLocalSync(options) {
-  const appId = options.appId;
-  if (!appId || /[/\\]/.test(appId)) {
-    throw new Error("createLocalSync: appId is required and must not contain slashes");
+  const rawName = options.appRootName || options.appId;
+  const appRootName = rawName?.trim() ?? "";
+  if (!appRootName || /[/\\]/.test(appRootName)) {
+    throw new Error("createLocalSync: appRootName is required and must not contain slashes");
   }
+  const appId = appRootName;
   const conflictPolicy = options.conflictPolicy ?? "lww";
-  const dbName = options.dbName ?? `localsync-${appId}`;
+  const dbName = options.dbName ?? `localsync-${appRootName}`;
   const deviceIdKey = options.deviceIdKey ?? `localsync-device-id`;
   const deviceId = getOrCreateDeviceId(deviceIdKey);
   const supported = isFolderSyncSupported();
@@ -382,6 +468,13 @@ function createLocalSync(options) {
   let conflictHandler = null;
   const conflicts = /* @__PURE__ */ new Map();
   const listeners = /* @__PURE__ */ new Set();
+  let folderQueue = Promise.resolve();
+  function enqueueFolderTask(task) {
+    const next = folderQueue.then(task, task);
+    folderQueue = next.catch(() => {
+    });
+    return next;
+  }
   let state = {
     status: supported ? "unmapped" : "unsupported",
     folderName: null,
@@ -421,6 +514,12 @@ function createLocalSync(options) {
       listeners.delete(listener);
     };
   }
+  function clearError() {
+    setState({
+      lastError: null,
+      status: cachedHandle ? "mapped" : isFolderSyncSupported() ? "unmapped" : "unsupported"
+    });
+  }
   async function ensureDb() {
     if (db) return db;
     if (typeof indexedDB === "undefined") {
@@ -450,20 +549,38 @@ function createLocalSync(options) {
       return getState();
     }
     cachedHandle = handle;
-    const ok = await ensurePermission(handle, "readwrite");
-    if (!ok) {
+    try {
+      const ok = await ensurePermission(handle, "readwrite");
+      if (!ok) {
+        setState({
+          status: "permission_needed",
+          folderName: handle.name,
+          lastError: "Permission needed to access the sync folder."
+        });
+        return getState();
+      }
+      const iter = iterateEntries(handle);
+      await iter.next();
       setState({
-        status: "permission_needed",
+        status: "mapped",
         folderName: handle.name,
-        lastError: "Permission needed to access the sync folder."
+        lastError: null
       });
-      return getState();
+    } catch (e) {
+      if (isNotFoundError(e)) {
+        setState({
+          status: "error",
+          folderName: handle.name,
+          lastError: STALE_HANDLE_MESSAGE
+        });
+      } else {
+        setState({
+          status: "error",
+          folderName: handle.name,
+          lastError: e instanceof Error ? e.message : String(e)
+        });
+      }
     }
-    setState({
-      status: "mapped",
-      folderName: handle.name,
-      lastError: null
-    });
     return getState();
   }
   async function mapFolder() {
@@ -475,7 +592,7 @@ function createLocalSync(options) {
       return getState();
     }
     try {
-      const handle = await pickDirectory(`localsync-${appId}`);
+      const handle = await pickDirectory(`localsync-${appRootName}`);
       const store = await ensureDb();
       await store.setHandle(handle);
       cachedHandle = handle;
@@ -488,7 +605,7 @@ function createLocalSync(options) {
       const aborted = e instanceof DOMException && (e.name === "AbortError" || e.name === "NotAllowedError");
       if (!aborted) {
         setState({
-          lastError: e instanceof Error ? e.message : String(e)
+          lastError: isNotFoundError(e) ? STALE_HANDLE_MESSAGE : e instanceof Error ? e.message : String(e)
         });
       }
     }
@@ -514,21 +631,36 @@ function createLocalSync(options) {
     const handle = cachedHandle ?? await store.getHandle();
     if (!handle) return false;
     cachedHandle = handle;
-    const ok = await ensurePermission(handle, "readwrite");
-    if (ok) {
-      setState({
-        status: "mapped",
-        folderName: handle.name,
-        lastError: null
-      });
-    } else {
-      setState({
-        status: "permission_needed",
-        folderName: handle.name,
-        lastError: "Permission needed to access the sync folder."
-      });
+    try {
+      const ok = await ensurePermission(handle, "readwrite");
+      if (ok) {
+        const iter = iterateEntries(handle);
+        await iter.next();
+        setState({
+          status: "mapped",
+          folderName: handle.name,
+          lastError: null
+        });
+        return true;
+      } else {
+        setState({
+          status: "permission_needed",
+          folderName: handle.name,
+          lastError: "Permission needed to access the sync folder."
+        });
+        return false;
+      }
+    } catch (e) {
+      if (isNotFoundError(e)) {
+        setState({
+          status: "error",
+          folderName: handle.name,
+          lastError: STALE_HANDLE_MESSAGE
+        });
+        return false;
+      }
+      throw e;
     }
-    return ok;
   }
   async function put(collection, id, payload) {
     const store = await ensureDb();
@@ -554,14 +686,31 @@ function createLocalSync(options) {
   }
   async function writeThrough(doc) {
     if (state.status !== "mapped" || !cachedHandle) return;
-    try {
-      const ok = await ensurePermission(cachedHandle, "readwrite");
-      if (!ok) return;
-      const appDir = await getAppDir(cachedHandle, appId, true);
-      await writeDocToFolder(appDir, doc);
-      await writeMeta(appDir, appId);
-    } catch {
-    }
+    return enqueueFolderTask(async () => {
+      if (!cachedHandle) return;
+      try {
+        const ok = await ensurePermission(cachedHandle, "readwrite");
+        if (!ok) {
+          setState({
+            status: "permission_needed",
+            folderName: cachedHandle.name,
+            lastError: "Permission needed to access the sync folder."
+          });
+          return;
+        }
+        const appDir = await getAppDir(cachedHandle, appRootName, true);
+        await writeDocToFolder(appDir, doc);
+        await writeMeta(appDir, appRootName);
+      } catch (e) {
+        if (isNotFoundError(e)) {
+          setState({
+            status: "error",
+            folderName: cachedHandle?.name ?? null,
+            lastError: STALE_HANDLE_MESSAGE
+          });
+        }
+      }
+    });
   }
   async function get(collection, id) {
     const store = await ensureDb();
@@ -594,6 +743,29 @@ function createLocalSync(options) {
     void writeThrough(doc);
     return doc;
   }
+  async function hardDelete(collection, id) {
+    const store = await ensureDb();
+    const existing = await store.getDoc(collection, id);
+    if (existing && !existing.deletedAt) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const tombstone = {
+        ...existing,
+        updatedAt: now,
+        deletedAt: now,
+        deviceId,
+        rev: (existing.deviceId === deviceId ? existing.rev : 0) + 1,
+        baseUpdatedAt: existing.updatedAt,
+        payload: existing.payload
+      };
+      try {
+        await writeThrough(tombstone);
+      } catch {
+      }
+    }
+    await store.deleteDocKey(collection, id);
+    conflicts.delete(conflictKey(collection, id));
+    setState({});
+  }
   function rememberConflicts(list2) {
     for (const c of list2) {
       conflicts.set(conflictKey(c.collection, c.id), c);
@@ -613,79 +785,95 @@ function createLocalSync(options) {
       setState({ status: "unsupported" });
       return getState();
     }
-    let handle = cachedHandle;
-    if (!handle) {
-      handle = await store.getHandle();
-      cachedHandle = handle;
-    }
-    if (!handle) {
-      setState({ status: "unmapped", folderName: null });
-      return getState();
-    }
-    const permitted = await ensurePermission(handle, "readwrite");
-    if (!permitted) {
-      setState({
-        status: "permission_needed",
-        folderName: handle.name,
-        lastError: "Permission needed to access the sync folder."
-      });
-      return getState();
-    }
-    setState({ status: "syncing", folderName: handle.name, lastError: null });
-    try {
-      const appDir = await getAppDir(handle, appId, true);
-      const localAll = await store.listAllDocs();
-      const localByCollection = groupByCollection(localAll);
-      const remoteCollections = /* @__PURE__ */ new Set([
-        ...Object.keys(localByCollection),
-        ...await listCollectionNames(appDir)
-      ]);
-      const newConflicts = [];
-      for (const collection of remoteCollections) {
-        const localDocs = localByCollection[collection] ?? [];
-        const remoteDocs = await readCollectionDocs(appDir, collection);
-        const { docs, conflicts: colConflicts } = mergeDocuments(
-          localDocs,
-          remoteDocs,
-          conflictPolicy
-        );
-        const finalById = /* @__PURE__ */ new Map();
-        for (const doc of docs) {
-          finalById.set(doc.id, doc);
+    return enqueueFolderTask(async () => {
+      let handle = cachedHandle;
+      if (!handle) {
+        handle = await store.getHandle();
+        cachedHandle = handle;
+      }
+      if (!handle) {
+        setState({ status: "unmapped", folderName: null, lastError: null });
+        return getState();
+      }
+      try {
+        const permitted = await ensurePermission(handle, "readwrite");
+        if (!permitted) {
+          setState({
+            status: "permission_needed",
+            folderName: handle.name,
+            lastError: "Permission needed to access the sync folder."
+          });
+          return getState();
         }
-        for (const c of colConflicts) {
-          const handled = await applyHandler(c);
-          if (handled) {
-            finalById.set(c.id, handled);
-          } else {
-            newConflicts.push(c);
-            finalById.set(c.id, c.local);
+        const testIter = iterateEntries(handle);
+        await testIter.next();
+      } catch (e) {
+        if (isNotFoundError(e)) {
+          setState({
+            status: "error",
+            folderName: handle.name,
+            lastError: STALE_HANDLE_MESSAGE
+          });
+          return getState();
+        }
+        throw e;
+      }
+      setState({ status: "syncing", folderName: handle.name, lastError: null });
+      try {
+        const appDir = await getAppDir(handle, appRootName, true);
+        const localAll = await store.listAllDocs();
+        const localByCollection = groupByCollection(localAll);
+        const remoteCollections = /* @__PURE__ */ new Set([
+          ...Object.keys(localByCollection),
+          ...await listCollectionNames(appDir)
+        ]);
+        const newConflicts = [];
+        for (const collection of remoteCollections) {
+          const localDocs = localByCollection[collection] ?? [];
+          const remoteDocs = await readCollectionDocs(appDir, collection);
+          const { docs, conflicts: colConflicts } = mergeDocuments(
+            localDocs,
+            remoteDocs,
+            conflictPolicy
+          );
+          const finalById = /* @__PURE__ */ new Map();
+          for (const doc of docs) {
+            finalById.set(doc.id, doc);
+          }
+          for (const c of colConflicts) {
+            const handled = await applyHandler(c);
+            if (handled) {
+              finalById.set(c.id, handled);
+            } else {
+              newConflicts.push(c);
+              finalById.set(c.id, c.local);
+            }
+          }
+          for (const doc of finalById.values()) {
+            await store.putDoc(doc);
+            await writeDocToFolder(appDir, doc);
           }
         }
-        for (const doc of finalById.values()) {
-          await store.putDoc(doc);
-          await writeDocToFolder(appDir, doc);
-        }
+        conflicts.clear();
+        rememberConflicts(newConflicts);
+        await writeMeta(appDir, appRootName);
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        setState({
+          status: "mapped",
+          folderName: handle.name,
+          lastSyncedAt: now,
+          lastError: null
+        });
+      } catch (e) {
+        const message = isNotFoundError(e) ? STALE_HANDLE_MESSAGE : e instanceof Error ? e.message : String(e);
+        setState({
+          status: "error",
+          folderName: handle.name,
+          lastError: message
+        });
       }
-      conflicts.clear();
-      rememberConflicts(newConflicts);
-      await writeMeta(appDir, appId);
-      const now = (/* @__PURE__ */ new Date()).toISOString();
-      setState({
-        status: "mapped",
-        folderName: handle.name,
-        lastSyncedAt: now,
-        lastError: null
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setState({
-        status: "error",
-        folderName: handle.name,
-        lastError: message
-      });
-    }
-    return getState();
+      return getState();
+    });
   }
   function listConflicts() {
     return Array.from(conflicts.values());
@@ -740,6 +928,7 @@ function createLocalSync(options) {
     return winner;
   }
   return {
+    appRootName,
     appId,
     deviceId,
     isSupported: () => isFolderSyncSupported(),
@@ -749,10 +938,12 @@ function createLocalSync(options) {
     mapFolder,
     unmapFolder,
     requestPermission,
+    clearError,
     put,
     get,
     list,
     delete: deleteDoc,
+    hardDelete,
     sync,
     onConflict,
     listConflicts,
@@ -768,6 +959,475 @@ function groupByCollection(docs) {
   return out;
 }
 
-export { compareUpdatedAt, createLocalSync, effectiveTime, getOrCreateDeviceId, isFolderSyncSupported, mergeDocuments, mergeOne, pickNewer };
+// src/explorer.ts
+function validateName(name) {
+  if (typeof name !== "string") {
+    throw new Error("Name must be a non-empty string");
+  }
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error("Name cannot be empty");
+  }
+  if (/[/\\]/.test(trimmed)) {
+    throw new Error('Name cannot contain slashes ("/" or "\\")');
+  }
+  if (trimmed === "." || trimmed === "..") {
+    throw new Error('Name cannot be "." or ".."');
+  }
+  return trimmed;
+}
+function sortExplorerNodes(nodes) {
+  return [...nodes].sort((a, b) => {
+    if (a.kind !== b.kind) {
+      return a.kind === "folder" ? -1 : 1;
+    }
+    const cmp = a.name.localeCompare(b.name, void 0, { sensitivity: "base" });
+    if (cmp !== 0) return cmp;
+    return a.id.localeCompare(b.id);
+  });
+}
+function generateFolderId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "f_" + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+}
+function placementKey(collection, docId) {
+  return `${collection}:${docId}`;
+}
+function computeFolderPath(folderId, foldersById) {
+  const segments = [];
+  const visited = /* @__PURE__ */ new Set();
+  let curr = folderId;
+  while (curr !== null) {
+    if (visited.has(curr)) break;
+    visited.add(curr);
+    const folder = foldersById.get(curr);
+    if (!folder) break;
+    segments.unshift(folder.name);
+    curr = folder.parentId;
+  }
+  return "/" + segments.join("/");
+}
+function computeFilePath(parentId, fileName, foldersById) {
+  if (!parentId) {
+    return `/${fileName}`;
+  }
+  const folderPath = computeFolderPath(parentId, foldersById);
+  if (!folderPath || folderPath === "/") {
+    return `/${fileName}`;
+  }
+  return `${folderPath}/${fileName}`;
+}
+function resolveFileDisplayName(doc, placementName, getDisplayName) {
+  if (placementName && placementName.trim()) {
+    return placementName.trim();
+  }
+  if (getDisplayName) {
+    const custom = getDisplayName(doc);
+    if (custom && custom.trim()) {
+      return custom.trim();
+    }
+  }
+  const payload = doc.payload;
+  if (payload && typeof payload === "object") {
+    if (typeof payload.name === "string" && payload.name.trim()) {
+      return payload.name.trim();
+    }
+    if (typeof payload.title === "string" && payload.title.trim()) {
+      return payload.title.trim();
+    }
+  }
+  return doc.id;
+}
+function createExplorer(sync, options) {
+  if (!options || !Array.isArray(options.collections)) {
+    throw new Error("createExplorer: options.collections must be an array");
+  }
+  const collections = [...options.collections];
+  const foldersCollection = options.foldersCollection ?? "_folders";
+  const placementsCollection = options.placementsCollection ?? "_placements";
+  const getDisplayName = options.getDisplayName;
+  async function getFoldersMap() {
+    const allFolders = await sync.list(foldersCollection);
+    const foldersById = /* @__PURE__ */ new Map();
+    for (const f of allFolders) {
+      foldersById.set(f.id, f.payload);
+    }
+    return { allFolders, foldersById };
+  }
+  async function getPlacementsMap() {
+    const placementDocs = await sync.list(placementsCollection);
+    const map = /* @__PURE__ */ new Map();
+    for (const p of placementDocs) {
+      map.set(placementKey(p.payload.collection, p.payload.docId), p.payload);
+      map.set(p.id, p.payload);
+    }
+    return map;
+  }
+  async function listChildren(parentId) {
+    const targetParentId = parentId ?? null;
+    if (targetParentId !== null) {
+      const parent = await sync.get(foldersCollection, targetParentId);
+      if (!parent) {
+        throw new Error(`Folder "${targetParentId}" not found`);
+      }
+    }
+    const { allFolders, foldersById } = await getFoldersMap();
+    const folderNodes = allFolders.filter((f) => (f.payload.parentId ?? null) === targetParentId).map((f) => ({
+      kind: "folder",
+      id: f.id,
+      name: f.payload.name,
+      parentId: f.payload.parentId ?? null,
+      path: computeFolderPath(f.id, foldersById)
+    }));
+    const placementMap = await getPlacementsMap();
+    const fileNodes = [];
+    for (const col of collections) {
+      const docs = await sync.list(col);
+      for (const doc of docs) {
+        const placement = placementMap.get(placementKey(doc.collection, doc.id));
+        const docParentId = placement?.parentId ?? null;
+        if (docParentId === targetParentId) {
+          const displayName = resolveFileDisplayName(
+            doc,
+            placement?.name,
+            getDisplayName
+          );
+          fileNodes.push({
+            kind: "file",
+            id: doc.id,
+            collection: doc.collection,
+            name: displayName,
+            parentId: docParentId,
+            path: computeFilePath(docParentId, displayName, foldersById),
+            doc
+          });
+        }
+      }
+    }
+    return sortExplorerNodes([...folderNodes, ...fileNodes]);
+  }
+  async function getTree() {
+    const { allFolders, foldersById } = await getFoldersMap();
+    const placementMap = await getPlacementsMap();
+    const foldersByParent = /* @__PURE__ */ new Map();
+    for (const f of allFolders) {
+      const pId = f.payload.parentId ?? null;
+      const node = {
+        kind: "folder",
+        id: f.id,
+        name: f.payload.name,
+        parentId: pId,
+        path: computeFolderPath(f.id, foldersById)
+      };
+      if (!foldersByParent.has(pId)) {
+        foldersByParent.set(pId, []);
+      }
+      foldersByParent.get(pId).push(node);
+    }
+    const filesByParent = /* @__PURE__ */ new Map();
+    for (const col of collections) {
+      const docs = await sync.list(col);
+      for (const doc of docs) {
+        const placement = placementMap.get(placementKey(doc.collection, doc.id));
+        const docParentId = placement?.parentId ?? null;
+        const displayName = resolveFileDisplayName(
+          doc,
+          placement?.name,
+          getDisplayName
+        );
+        const node = {
+          kind: "file",
+          id: doc.id,
+          collection: doc.collection,
+          name: displayName,
+          parentId: docParentId,
+          path: computeFilePath(docParentId, displayName, foldersById),
+          doc
+        };
+        if (!filesByParent.has(docParentId)) {
+          filesByParent.set(docParentId, []);
+        }
+        filesByParent.get(docParentId).push(node);
+      }
+    }
+    const result = [];
+    const visitedFolders = /* @__PURE__ */ new Set();
+    function traverse(currentParentId) {
+      const childFolders = foldersByParent.get(currentParentId) ?? [];
+      const childFiles = filesByParent.get(currentParentId) ?? [];
+      const sortedChildFolders = sortExplorerNodes(childFolders);
+      const sortedChildFiles = sortExplorerNodes(childFiles);
+      for (const folder of sortedChildFolders) {
+        result.push(folder);
+        if (!visitedFolders.has(folder.id)) {
+          visitedFolders.add(folder.id);
+          traverse(folder.id);
+        }
+      }
+      for (const file of sortedChildFiles) {
+        result.push(file);
+      }
+    }
+    traverse(null);
+    for (const [pId, fList] of foldersByParent.entries()) {
+      if (pId !== null && !visitedFolders.has(pId)) {
+        for (const f of fList) {
+          if (!visitedFolders.has(f.id)) {
+            visitedFolders.add(f.id);
+            result.push(f);
+            traverse(f.id);
+          }
+        }
+      }
+    }
+    for (const [pId, fileList] of filesByParent.entries()) {
+      if (pId !== null && !visitedFolders.has(pId)) {
+        for (const file of fileList) {
+          if (!result.includes(file)) {
+            result.push(file);
+          }
+        }
+      }
+    }
+    return result;
+  }
+  async function createFolder(name, parentId) {
+    const validName = validateName(name);
+    const targetParentId = parentId ?? null;
+    if (targetParentId !== null) {
+      const parent = await sync.get(foldersCollection, targetParentId);
+      if (!parent) {
+        throw new Error(`Parent folder "${targetParentId}" not found`);
+      }
+    }
+    const id = generateFolderId();
+    const payload = {
+      name: validName,
+      parentId: targetParentId
+    };
+    await sync.put(foldersCollection, id, payload);
+    const { foldersById } = await getFoldersMap();
+    foldersById.set(id, payload);
+    return {
+      kind: "folder",
+      id,
+      name: validName,
+      parentId: targetParentId,
+      path: computeFolderPath(id, foldersById)
+    };
+  }
+  async function rename(node, newName) {
+    const validName = validateName(newName);
+    if (node.kind === "folder") {
+      const existing = await sync.get(foldersCollection, node.id);
+      if (!existing) {
+        throw new Error(`Folder "${node.id}" not found`);
+      }
+      const updatedPayload = {
+        ...existing.payload,
+        name: validName
+      };
+      await sync.put(foldersCollection, node.id, updatedPayload);
+      const { foldersById } = await getFoldersMap();
+      foldersById.set(node.id, updatedPayload);
+      return {
+        kind: "folder",
+        id: node.id,
+        name: validName,
+        parentId: updatedPayload.parentId,
+        path: computeFolderPath(node.id, foldersById)
+      };
+    } else {
+      const key = placementKey(node.collection, node.id);
+      const existingPlacement = await sync.get(placementsCollection, key);
+      const updatedPayload = {
+        collection: node.collection,
+        docId: node.id,
+        parentId: existingPlacement?.payload.parentId ?? node.parentId ?? null,
+        name: validName
+      };
+      await sync.put(placementsCollection, key, updatedPayload);
+      const { foldersById } = await getFoldersMap();
+      return {
+        ...node,
+        name: validName,
+        parentId: updatedPayload.parentId,
+        path: computeFilePath(updatedPayload.parentId, validName, foldersById)
+      };
+    }
+  }
+  async function move(node, newParentId) {
+    const targetParentId = newParentId ?? null;
+    if (targetParentId !== null) {
+      const parent = await sync.get(foldersCollection, targetParentId);
+      if (!parent) {
+        throw new Error(`Target folder "${targetParentId}" not found`);
+      }
+    }
+    if (node.kind === "folder") {
+      if (node.id === targetParentId) {
+        throw new Error("Cannot move folder into itself");
+      }
+      if (targetParentId !== null) {
+        const { foldersById: foldersById2 } = await getFoldersMap();
+        let curr = targetParentId;
+        const visited = /* @__PURE__ */ new Set();
+        while (curr !== null) {
+          if (curr === node.id) {
+            throw new Error("Cannot move folder into its own descendant");
+          }
+          if (visited.has(curr)) break;
+          visited.add(curr);
+          curr = foldersById2.get(curr)?.parentId ?? null;
+        }
+      }
+      const existing = await sync.get(foldersCollection, node.id);
+      if (!existing) {
+        throw new Error(`Folder "${node.id}" not found`);
+      }
+      const updatedPayload = {
+        ...existing.payload,
+        parentId: targetParentId
+      };
+      await sync.put(foldersCollection, node.id, updatedPayload);
+      const { foldersById } = await getFoldersMap();
+      foldersById.set(node.id, updatedPayload);
+      return {
+        kind: "folder",
+        id: node.id,
+        name: updatedPayload.name,
+        parentId: targetParentId,
+        path: computeFolderPath(node.id, foldersById)
+      };
+    } else {
+      const key = placementKey(node.collection, node.id);
+      const existing = await sync.get(placementsCollection, key);
+      const updatedPayload = {
+        collection: node.collection,
+        docId: node.id,
+        parentId: targetParentId,
+        ...existing?.payload.name ? { name: existing.payload.name } : {}
+      };
+      await sync.put(placementsCollection, key, updatedPayload);
+      const { foldersById } = await getFoldersMap();
+      return {
+        ...node,
+        parentId: targetParentId,
+        path: computeFilePath(targetParentId, node.name, foldersById)
+      };
+    }
+  }
+  async function collectDescendants(folderId) {
+    const { allFolders } = await getFoldersMap();
+    const folderIdsToDelete = /* @__PURE__ */ new Set([folderId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const f of allFolders) {
+        if (f.payload.parentId && folderIdsToDelete.has(f.payload.parentId) && !folderIdsToDelete.has(f.id)) {
+          folderIdsToDelete.add(f.id);
+          changed = true;
+        }
+      }
+    }
+    const placementMap = await getPlacementsMap();
+    const files = [];
+    for (const col of collections) {
+      const docs = await sync.list(col);
+      for (const doc of docs) {
+        const placement = placementMap.get(placementKey(doc.collection, doc.id));
+        const pId = placement?.parentId ?? null;
+        if (pId && folderIdsToDelete.has(pId)) {
+          files.push({ collection: doc.collection, id: doc.id });
+        }
+      }
+    }
+    return {
+      folderIds: Array.from(folderIdsToDelete),
+      files
+    };
+  }
+  async function deleteNode(node, opts) {
+    if (node.kind === "file") {
+      await sync.delete(node.collection, node.id);
+      await sync.delete(placementsCollection, placementKey(node.collection, node.id));
+      return;
+    }
+    const { folderIds, files } = await collectDescendants(node.id);
+    const hasChildren = folderIds.length > 1 || files.length > 0;
+    if (!opts?.recursive && hasChildren) {
+      throw new Error(
+        `Cannot delete folder "${node.name}" because it is not empty. Pass recursive: true to delete.`
+      );
+    }
+    for (const file of files) {
+      await sync.delete(file.collection, file.id);
+      await sync.delete(placementsCollection, placementKey(file.collection, file.id));
+    }
+    for (const fId of folderIds) {
+      await sync.delete(foldersCollection, fId);
+    }
+  }
+  async function permanentDeleteNode(node, opts) {
+    if (node.kind === "file") {
+      await sync.hardDelete(node.collection, node.id);
+      await sync.hardDelete(placementsCollection, placementKey(node.collection, node.id));
+      return;
+    }
+    const { folderIds, files } = await collectDescendants(node.id);
+    const hasChildren = folderIds.length > 1 || files.length > 0;
+    if (!opts?.recursive && hasChildren) {
+      throw new Error(
+        `Cannot delete folder "${node.name}" because it is not empty. Pass recursive: true to delete.`
+      );
+    }
+    for (const file of files) {
+      await sync.hardDelete(file.collection, file.id);
+      await sync.hardDelete(placementsCollection, placementKey(file.collection, file.id));
+    }
+    for (const fId of folderIds) {
+      await sync.hardDelete(foldersCollection, fId);
+    }
+  }
+  async function ensurePlacement(collection, docId, parentId, name) {
+    if (parentId !== void 0 && parentId !== null) {
+      const folder = await sync.get(foldersCollection, parentId);
+      if (!folder) {
+        throw new Error(`Parent folder "${parentId}" not found`);
+      }
+    }
+    const key = placementKey(collection, docId);
+    const existing = await sync.get(placementsCollection, key);
+    const resolvedParentId = parentId !== void 0 ? parentId : existing?.payload.parentId !== void 0 ? existing.payload.parentId : null;
+    let resolvedName = void 0;
+    if (name !== void 0) {
+      resolvedName = validateName(name);
+    } else if (existing?.payload.name !== void 0) {
+      resolvedName = existing.payload.name;
+    }
+    const payload = {
+      collection,
+      docId,
+      parentId: resolvedParentId,
+      ...resolvedName ? { name: resolvedName } : {}
+    };
+    return sync.put(placementsCollection, key, payload);
+  }
+  return {
+    listChildren,
+    getTree,
+    createFolder,
+    rename,
+    move,
+    delete: deleteNode,
+    permanentDelete: permanentDeleteNode,
+    ensurePlacement,
+    subscribe: (listener) => sync.subscribe(listener)
+  };
+}
+
+export { LOCALSYNC_DIR, STALE_HANDLE_MESSAGE, compareUpdatedAt, createExplorer, createLocalSync, effectiveTime, getAppDir, getDir, getOrCreateDeviceId, isFolderSyncSupported, isNotFoundError, mergeDocuments, mergeOne, pickNewer, sortExplorerNodes, validateName };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

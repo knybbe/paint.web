@@ -5,6 +5,7 @@ import { PixelBuffer } from "../src/core/pixel-buffer";
 import {
   documentFromSyncPayload,
   documentToSyncPayload,
+  explorer,
   isSyncSupported,
   localSync,
   syncSaveDocument,
@@ -63,6 +64,7 @@ describe("YearlyLabs Local Sync folder sync", () => {
 
   it("exposes sync instance and status reporting", () => {
     expect(localSync).toBeDefined();
+    expect(localSync.appRootName).toBe("paint");
     expect(localSync.appId).toBe("paint");
     const state = localSync.getState();
     expect(state).toBeDefined();
@@ -73,5 +75,16 @@ describe("YearlyLabs Local Sync folder sync", () => {
   it("handles sync document save non-fatally when storage is offline", async () => {
     const doc = new PdDocument(16, 16, { name: "OfflineTest.png" });
     await expect(syncSaveDocument("doc-offline-test", doc)).resolves.toBeUndefined();
+  });
+
+  it("exposes explorer with documents collection and ensurePlacement", async () => {
+    expect(explorer).toBeDefined();
+    expect(typeof explorer.listChildren).toBe("function");
+    expect(typeof explorer.createFolder).toBe("function");
+    expect(typeof explorer.ensurePlacement).toBe("function");
+    expect(typeof explorer.permanentDelete).toBe("function");
+    // IDB may be unavailable in unit tests; placement must fail soft like syncSaveDocument.
+    await expect(explorer.ensurePlacement("documents", "doc-placement-test", null, "Placement.png")).rejects.toThrow();
+    await expect(syncSaveDocument("doc-placement-save", new PdDocument(8, 8, { name: "Place.png" }))).resolves.toBeUndefined();
   });
 });

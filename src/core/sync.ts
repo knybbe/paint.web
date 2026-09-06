@@ -1,9 +1,15 @@
 import {
+  createExplorer,
   createLocalSync,
   isFolderSyncSupported,
   type ConflictInfo,
+  type Explorer,
+  type ExplorerFileNode,
+  type ExplorerFolderNode,
+  type ExplorerNode,
   type LocalSync,
   type LocalSyncState,
+  type SyncDocument,
 } from "@yearlylabs/local-sync";
 import type { AppState } from "../app-state";
 import { PdDocument, type BackgroundKind } from "./document";
@@ -11,7 +17,7 @@ import type { BlendMode } from "./blend";
 import { Layer, noteLayerId } from "./layer";
 import { PixelBuffer } from "./pixel-buffer";
 
-export type { ConflictInfo, LocalSync, LocalSyncState };
+export type { ConflictInfo, Explorer, ExplorerFileNode, ExplorerFolderNode, ExplorerNode, LocalSync, LocalSyncState, SyncDocument };
 
 export interface SyncedLayerPayload {
   id: string;
@@ -39,8 +45,21 @@ export interface SyncedDocumentPayload {
 }
 
 export const localSync: LocalSync = createLocalSync({
-  appId: "paint",
+  appRootName: "paint",
   conflictPolicy: "detect",
+});
+
+function explorerDisplayName(doc: SyncDocument): string {
+  const payload = doc.payload as { name?: unknown } | null;
+  if (payload && typeof payload.name === "string" && payload.name.trim()) {
+    return payload.name.trim();
+  }
+  return doc.id;
+}
+
+export const explorer: Explorer = createExplorer(localSync, {
+  collections: ["documents"],
+  getDisplayName: explorerDisplayName,
 });
 
 function uint8ToBase64(bytes: Uint8Array | Uint8ClampedArray): string {
@@ -145,6 +164,11 @@ export async function syncSaveDocument(docId: string, doc: PdDocument): Promise<
   try {
     const payload = documentToSyncPayload(doc);
     await localSync.put("documents", docId, payload);
+    try {
+      await explorer.ensurePlacement("documents", docId, null, payload.name);
+    } catch {
+      /* Placement is best-effort */
+    }
   } catch {
     /* Non-fatal: local IDB remains primary */
   }

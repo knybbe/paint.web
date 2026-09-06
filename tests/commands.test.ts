@@ -42,6 +42,21 @@ describe("command registry", () => {
     expect(dialog?.textContent).toContain("New Image");
   });
 
+  it("file.explorer opens the explorer dialog", async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const app = new AppState();
+    await app.init();
+    mountShell(document.getElementById("app")!, app);
+
+    await act(async () => {
+      expect(runCommand(app, "file.explorer")).toBe(true);
+    });
+    expect(app.dialog?.type).toBe("explorer");
+    const dialog = document.querySelector('[data-testid="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog?.textContent).toContain("Explorer");
+  });
+
   it("disables crop when selection is empty", async () => {
     const app = new AppState();
     await app.init();
