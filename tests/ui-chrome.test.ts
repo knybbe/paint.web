@@ -259,4 +259,49 @@ describe("Desktop editor shell & mobile deck", () => {
     expect(app.sessions).toHaveLength(1);
     expect(app.dialog).toBeNull(); // No save prompt!
   });
+
+  it("renders History panel and allows safe deletion of history entries via UI", async () => {
+    const historyWin = document.querySelector('[data-testid="window-history"]');
+    expect(historyWin).toBeTruthy();
+
+    // Initially just "New Image"
+    let rows = historyWin!.querySelectorAll(".hist-row");
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain("New Image");
+    expect(rows[0].querySelector(".hist-delete-btn")).toBeNull(); // Cannot delete baseline
+
+    // Add two history steps
+    await act(async () => {
+      app.pushNamed("Paint Step 1", "pencil", () => undefined, () => undefined);
+      app.pushNamed("Paint Step 2", "brush", () => undefined, () => undefined);
+    });
+
+    rows = historyWin!.querySelectorAll(".hist-row");
+    expect(rows.length).toBe(3);
+    expect(rows[1].querySelector('[data-testid="delete-history-1"]')).toBeTruthy();
+    expect(rows[2].querySelector('[data-testid="delete-history-2"]')).toBeTruthy();
+
+    // Delete step 1 using inline delete button
+    const del1 = rows[1].querySelector('[data-testid="delete-history-1"]') as HTMLElement;
+    await act(async () => {
+      click(del1);
+    });
+
+    rows = historyWin!.querySelectorAll(".hist-row");
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain("New Image");
+    expect(rows[1].textContent).toContain("Paint Step 2");
+
+    // Delete active step using footer delete button
+    const footerDelBtn = historyWin!.querySelector('[data-testid="delete-active-history-btn"]') as HTMLButtonElement;
+    expect(footerDelBtn.disabled).toBe(false);
+    await act(async () => {
+      click(footerDelBtn);
+    });
+
+    rows = historyWin!.querySelectorAll(".hist-row");
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain("New Image");
+    expect(footerDelBtn.disabled).toBe(true);
+  });
 });

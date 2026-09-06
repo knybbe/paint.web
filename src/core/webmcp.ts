@@ -1004,6 +1004,52 @@ export function registerWebMcpTools(app: AppState): () => void {
     },
   });
 
+  // jump_to_history
+  reg({
+    name: "jump_to_history",
+    description: "Jump to a specific index in the history timeline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        index: { type: "number", description: "Target index in the history timeline to jump to." },
+      },
+      required: ["index"],
+    },
+    execute: (args: { index: number }) => {
+      const success = app.jumpToHistory(args.index);
+      return {
+        success,
+        position: app.history.position,
+        canUndo: app.history.canUndo,
+        canRedo: app.history.canRedo,
+        timeline: app.history.timeline,
+      };
+    },
+  });
+
+  // delete_history_entry
+  reg({
+    name: "delete_history_entry",
+    description: "Delete an entry from the history timeline safely (safe rule: cannot delete index 0 baseline).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        index: { type: "number", description: "Index in the history timeline to delete (must be > 0)." },
+      },
+      required: ["index"],
+    },
+    execute: (args: { index: number }) => {
+      const success = app.deleteHistoryEntry(args.index);
+      return {
+        success,
+        position: app.history.position,
+        canUndo: app.history.canUndo,
+        canRedo: app.history.canRedo,
+        timeline: app.history.timeline,
+      };
+    },
+  });
+
   // 37. export_image_data_url
   reg({
     name: "export_image_data_url",

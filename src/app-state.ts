@@ -236,6 +236,12 @@ export class AppState extends EventTarget {
       preserveViewport: false,
     };
     session.history.baseline = serializeDocument(doc);
+    session.history.applySnapshot = (snap: unknown) => {
+      applyDocument(session.document, snap as SerializedDocument);
+      session.selection.width = session.document.width;
+      session.selection.height = session.document.height;
+      session.compositor.invalidate();
+    };
     session.history.afterPush = () => {
       const top = session.history.undoEntries.at(-1);
       if (top) top.after = serializeDocument(session.document);
@@ -331,6 +337,7 @@ export class AppState extends EventTarget {
         s.history.redo,
         apply,
       );
+      session.history.applySnapshot = apply as (snap: unknown) => void;
       session.history.afterPush = () => {
         const top = session.history.undoEntries.at(-1);
         if (top) top.after = serializeDocument(session.document);
@@ -545,6 +552,38 @@ export class AppState extends EventTarget {
       this.notify("document");
       this.notify("layers");
     }
+  }
+
+  jumpToHistory(index: number): boolean {
+    if (index < 0 || index >= this.history.timeline.length) {
+      return false;
+    }
+    this.cancelActiveTool();
+    this.cancelFloating();
+    this.history.jumpTo(index);
+    this.compositor.invalidate();
+    this.notify("history");
+    this.notify("document");
+    this.notify("layers");
+    return true;
+  }
+
+  deleteHistoryEntry(index: number): boolean {
+    if (!this.history.canDelete(index)) {
+      return false;
+    }
+    this.cancelActiveTool();
+    this.cancelFloating();
+    const ok = this.history.delete(index);
+    if (ok) {
+      this.document.dirty = true;
+      this.compositor.invalidate();
+      this.notify("history");
+      this.notify("document");
+      this.notify("layers");
+      this.schedulePersist();
+    }
+    return ok;
   }
 
   pushNamed(name: string, icon: string, undo: () => void, redo: () => void): void {

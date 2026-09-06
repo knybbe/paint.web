@@ -323,16 +323,42 @@ function HistoryPanel({ app }: { app: AppState }) {
             key={item.index}
             className={"hist-row" + (item.index === pos ? " current" : item.index > pos ? " future" : "")}
             onClick={() => {
-              app.history.jumpTo(item.index);
-              app.compositor.invalidate();
-              app.notify("history");
-              app.notify("document");
-              app.notify("layers");
+              app.jumpToHistory(item.index);
             }}
           >
-            {item.name}
+            <span className="hist-name">{item.name}</span>
+            {item.index > 0 && (
+              <button
+                type="button"
+                className="hist-delete-btn"
+                title={`Delete ${item.name}`}
+                aria-label={`Delete ${item.name}`}
+                data-testid={`delete-history-${item.index}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  app.deleteHistoryEntry(item.index);
+                }}
+              >
+                ×
+              </button>
+            )}
           </div>
         ))}
+      </div>
+      <div className="history-actions">
+        <button
+          type="button"
+          className="icon-btn"
+          title="Delete selected history step"
+          aria-label="Delete selected history step"
+          data-testid="delete-active-history-btn"
+          disabled={pos === 0}
+          onClick={() => {
+            if (pos > 0) app.deleteHistoryEntry(pos);
+          }}
+        >
+          <SvgIcon svg={UI_ICONS.deleteLayer} />
+        </button>
       </div>
     </WindowFrame>
   );

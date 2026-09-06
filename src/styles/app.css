@@ -399,13 +399,50 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 .hist-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  padding: 3px 4px;
+  padding: 3px 6px;
   cursor: pointer;
+  user-select: none;
 }
 .hist-row.current { background: var(--pdn-accent-soft); outline: 1px solid var(--pdn-accent); }
 .hist-row.future { opacity: 0.45; }
 .hist-row:hover { background: var(--pdn-hover); }
+.hist-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--pdn-muted);
+  cursor: pointer;
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.6;
+}
+.hist-delete-btn:hover {
+  background: var(--pdn-danger, #ef4444);
+  color: #fff;
+  opacity: 1;
+}
+.history-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--pdn-border);
+}
+.history-actions .icon-btn {
+  min-width: 24px;
+  min-height: 24px;
+}
 
 .canvas-col {
   display: flex;

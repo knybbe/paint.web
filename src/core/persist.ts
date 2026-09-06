@@ -227,6 +227,7 @@ export function rebuildHistory(
 ): HistoryStack {
   const stack = new HistoryStack(limit);
   stack.baseline = baseline;
+  stack.applySnapshot = apply as (snap: unknown) => void;
   let prev = baseline;
   for (const step of undo) {
     const before = prev;
@@ -256,7 +257,7 @@ export function rebuildHistory(
     });
     rprev = after;
   }
-  for (let i = redoBuilt.length - 1; i >= 0; i--) stack.redoEntries.push(redoBuilt[i]);
+  for (let i = redoBuilt.length - 1; i >= 0; i--) stack.addRedoEntry(redoBuilt[i]);
   return stack;
 }
 
