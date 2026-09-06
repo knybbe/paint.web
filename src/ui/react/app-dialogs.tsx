@@ -6,7 +6,16 @@ import type { SaveFormat } from "@/core/file-io";
 import type { PixelBuffer } from "@/core/pixel-buffer";
 import { getEffect } from "@/effects/registry";
 import { paramMap } from "@/effects/base";
-import { localSync, runFolderSync, isSyncSupported, type ConflictInfo, type LocalSyncState } from "@/core/sync";
+import {
+  localSync,
+  runFolderSync,
+  isSyncSupported,
+  seedOpenSessionsIntoSync,
+  scheduleSyncWhenMapped,
+  STALE_HANDLE_MESSAGE,
+  type ConflictInfo,
+  type LocalSyncState,
+} from "@/core/sync";
 import { Button } from "@/ui/react/components/ui/button";
 import { Checkbox } from "@/ui/react/components/ui/checkbox";
 import {
@@ -683,16 +692,30 @@ function SyncDialog({ app }: { app: AppState }) {
     setWorking(true);
     setMsg(null);
     try {
-      await localSync.mapFolder();
-      await localSync.sync();
-      setMsg("Folder connected and synced successfully.");
+      const nextState = await localSync.mapFolder();
+      if (nextState.status === "mapped") {
+        await seedOpenSessionsIntoSync(app);
+        const syncRes = await runFolderSync();
+        if (syncRes.status === "error") {
+          setMsg(syncRes.lastError ?? "Sync encountered an error.");
+        } else {
+          setMsg(`Folder “${nextState.folderName}” connected and synced.`);
+        }
+      } else if (nextState.lastError) {
+        setMsg(nextState.lastError);
+      }
     } catch (err: unknown) {
-      const e = err as Error;
-      if (e?.name !== "AbortError") {
-        setMsg(e?.message || "Failed to map folder.");
+      const isAbort =
+        (err instanceof DOMException && (err.name === "AbortError" || err.name === "NotAllowedError")) ||
+        (err as Error)?.name === "AbortError";
+      if (!isAbort) {
+        const e = err as Error;
+        setMsg(e?.message || "Failed to connect folder.");
       }
     } finally {
       setWorking(false);
+      setState(localSync.getState());
+      setConflicts(localSync.listConflicts());
     }
   };
 
@@ -700,13 +723,23 @@ function SyncDialog({ app }: { app: AppState }) {
     setWorking(true);
     setMsg(null);
     try {
-      await runFolderSync();
-      setMsg("Sync finished.");
+      const nextState = await runFolderSync();
+      if (nextState.status === "error") {
+        setMsg(nextState.lastError ?? "Sync failed.");
+      } else {
+        setMsg(
+          nextState.lastSyncedAt
+            ? `Folder synced (${new Date(nextState.lastSyncedAt).toLocaleTimeString()}).`
+            : "Folder synced.",
+        );
+      }
     } catch (err: unknown) {
       const e = err as Error;
       setMsg(e?.message || "Sync failed.");
     } finally {
       setWorking(false);
+      setState(localSync.getState());
+      setConflicts(localSync.listConflicts());
     }
   };
 
@@ -721,13 +754,23 @@ function SyncDialog({ app }: { app: AppState }) {
       setMsg(e?.message || "Failed to disconnect.");
     } finally {
       setWorking(false);
+      setState(localSync.getState());
+      setConflicts(localSync.listConflicts());
     }
+  };
+
+  const handleDismissError = () => {
+    localSync.clearError();
+    setState(localSync.getState());
+    setMsg(null);
   };
 
   const handleResolve = async (c: ConflictInfo, choice: "local" | "remote") => {
     try {
       await localSync.resolveConflict(c.collection, c.id, choice);
       setConflicts(localSync.listConflicts());
+      scheduleSyncWhenMapped();
+      setMsg(choice === "local" ? "Kept local version." : "Kept remote version.");
     } catch (err: unknown) {
       const e = err as Error;
       setMsg(e?.message || "Conflict resolution failed.");
@@ -736,16 +779,34 @@ function SyncDialog({ app }: { app: AppState }) {
 
   const handlePermission = async () => {
     setWorking(true);
+    setMsg(null);
     try {
-      await localSync.requestPermission();
-      await runFolderSync();
+      const ok = await localSync.requestPermission();
+      if (ok) {
+        await runFolderSync();
+        setMsg("Permission granted and synced.");
+      } else {
+        setMsg("Folder permission was not granted.");
+      }
     } catch (err: unknown) {
       const e = err as Error;
       setMsg(e?.message || "Permission request failed.");
     } finally {
       setWorking(false);
+      setState(localSync.getState());
+      setConflicts(localSync.listConflicts());
     }
   };
+
+  const isStaleHandle =
+    state.status === "error" &&
+    (state.lastError === STALE_HANDLE_MESSAGE ||
+      state.lastError?.toLowerCase().includes("not found or moved") ||
+      state.lastError?.toLowerCase().includes("stale"));
+
+  const isError = state.status === "error";
+  const isMapped = state.status === "mapped";
+  const isSyncing = state.status === "syncing" || (working && state.status !== "unmapped");
 
   return (
     <AppDialogShell
@@ -763,7 +824,15 @@ function SyncDialog({ app }: { app: AppState }) {
         <div className="rounded-md border border-border bg-muted/40 p-2.5 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="font-medium text-foreground">Status:</span>
-            <span className="capitalize px-1.5 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary">
+            <span
+              className={`capitalize px-1.5 py-0.5 rounded text-[11px] font-semibold ${
+                isError
+                  ? "bg-destructive/15 text-destructive"
+                  : isMapped
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : "bg-primary/10 text-primary"
+              }`}
+            >
               {state.status}
             </span>
           </div>
@@ -775,13 +844,24 @@ function SyncDialog({ app }: { app: AppState }) {
             <span className="text-muted-foreground">Last Sync:</span>
             <span>{state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleTimeString() : "Never"}</span>
           </div>
-          {state.lastError ? (
-            <div className="text-destructive text-[11px] mt-1">{state.lastError}</div>
-          ) : null}
-          {msg ? (
-            <div className="text-primary text-[11px] mt-1">{msg}</div>
-          ) : null}
+          {msg ? <div className="text-primary text-[11px] mt-1">{msg}</div> : null}
         </div>
+
+        {isError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-[11px] space-y-1">
+            <div className="font-semibold text-destructive">Sync Error</div>
+            <div className="text-foreground/90 font-medium">{state.lastError || "An error occurred during synchronization."}</div>
+            {isStaleHandle ? (
+              <p className="text-muted-foreground leading-normal">
+                The folder was moved, deleted, or its access was revoked. Reconnect to restore disk sync.
+              </p>
+            ) : (
+              <p className="text-muted-foreground leading-normal">
+                Check folder availability or reconnect to a different folder.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {!isSyncSupported() ? (
           <p className="text-[11px] text-muted-foreground italic">
@@ -794,39 +874,73 @@ function SyncDialog({ app }: { app: AppState }) {
             <Button
               type="button"
               className={BTN}
-              disabled={working}
+              disabled={working || state.status === "unsupported"}
               data-testid="sync-map-btn"
               onClick={() => void handleMap()}
             >
               {working ? "Connecting..." : "Connect Local Folder..."}
             </Button>
-          ) : (
+          ) : isError ? (
             <>
               <Button
                 type="button"
                 className={BTN}
-                disabled={working || state.status === "syncing"}
-                data-testid="sync-now-btn"
-                onClick={() => void handleSyncNow()}
+                disabled={working}
+                data-testid="sync-reconnect-btn"
+                onClick={() => void handleMap()}
               >
-                {state.status === "syncing" ? "Syncing..." : "Sync Now"}
+                {working ? "Connecting..." : "Reconnect Folder..."}
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={`${BTN} text-destructive hover:text-destructive`}
+                disabled={working}
+                data-testid="sync-unmap-btn"
+                onClick={() => void handleUnmap()}
+              >
+                Disconnect
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className={BTN}
+                disabled={working}
+                data-testid="sync-dismiss-btn"
+                onClick={handleDismissError}
+              >
+                Dismiss Error
+              </Button>
+            </>
+          ) : (
+            <>
               {state.status === "permission_needed" ? (
                 <Button
                   type="button"
-                  variant="outline"
                   className={BTN}
                   disabled={working}
+                  data-testid="sync-grant-btn"
                   onClick={() => void handlePermission()}
                 >
                   Grant Permission
                 </Button>
-              ) : null}
+              ) : (
+                <Button
+                  type="button"
+                  className={BTN}
+                  disabled={working || isSyncing}
+                  data-testid="sync-now-btn"
+                  onClick={() => void handleSyncNow()}
+                >
+                  {isSyncing ? "Syncing..." : "Sync Now"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
                 className={BTN}
                 disabled={working}
+                data-testid="sync-change-btn"
                 onClick={() => void handleMap()}
               >
                 Change Folder

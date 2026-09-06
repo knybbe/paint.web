@@ -1,13 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { describe, expect, it, vi } from "vitest";
+import { AppState } from "../src/app-state";
+import { AppDialogs } from "../src/ui/react/app-dialogs";
 import { PdDocument } from "../src/core/document";
 import { Layer } from "../src/core/layer";
 import { PixelBuffer } from "../src/core/pixel-buffer";
 import {
+  awaitSyncWhenMapped,
+  clearAutosaveDocument,
   documentFromSyncPayload,
   documentToSyncPayload,
   explorer,
+  isNotFoundError,
   isSyncSupported,
   localSync,
+  runFolderSync,
+  scheduleSyncWhenMapped,
+  seedOpenSessionsIntoSync,
+  STALE_HANDLE_MESSAGE,
+  syncDeleteDocument,
   syncSaveDocument,
   type SyncedDocumentPayload,
 } from "../src/core/sync";
@@ -86,5 +98,99 @@ describe("YearlyLabs Local Sync folder sync", () => {
     // IDB may be unavailable in unit tests; placement must fail soft like syncSaveDocument.
     await expect(explorer.ensurePlacement("documents", "doc-placement-test", null, "Placement.png")).rejects.toThrow();
     await expect(syncSaveDocument("doc-placement-save", new PdDocument(8, 8, { name: "Place.png" }))).resolves.toBeUndefined();
+  });
+
+  it("handles debounced scheduleSyncWhenMapped and awaitSyncWhenMapped", async () => {
+    // When unmapped, awaitSyncWhenMapped resolves to null
+    const unmappedResult = await awaitSyncWhenMapped();
+    expect(unmappedResult).toBeNull();
+
+    // Verify debouncing coalesces timer triggers without throwing
+    vi.useFakeTimers();
+    try {
+      scheduleSyncWhenMapped(150);
+      scheduleSyncWhenMapped(150);
+      scheduleSyncWhenMapped(150);
+      vi.advanceTimersByTime(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears document autosave IDB entry via clearAutosaveDocument and syncDeleteDocument", async () => {
+    await expect(clearAutosaveDocument("doc-test-clear")).resolves.toBeUndefined();
+    await expect(syncDeleteDocument("doc-test-del")).resolves.toBeUndefined();
+  });
+
+  it("seeds open sessions into sync on folder connection", async () => {
+    const app = new AppState();
+    await app.init();
+    expect(app.sessions.length).toBeGreaterThan(0);
+    await expect(seedOpenSessionsIntoSync(app)).resolves.toBeUndefined();
+  });
+
+  it("exposes stale-handle message constant and detects NotFound errors", () => {
+    expect(STALE_HANDLE_MESSAGE).toContain("not found or moved");
+    const notFoundDomEx = new DOMException("The requested file was not found", "NotFoundError");
+    expect(isNotFoundError(notFoundDomEx)).toBe(true);
+    const standardError = new Error("General disk failure");
+    expect(isNotFoundError(standardError)).toBe(false);
+
+    localSync.clearError();
+    const state = localSync.getState();
+    expect(state.lastError).toBeNull();
+  });
+
+  it("syncs open session name when rename is performed", async () => {
+    const app = new AppState();
+    await app.init();
+    const active = app.session;
+    expect(active).toBeDefined();
+    app.renameSession(active.id, "CloudDraft.png");
+    expect(active.document.name).toBe("CloudDraft.png");
+  });
+
+  it("executes runFolderSync catching any error gracefully into LocalSyncState", async () => {
+    const result = await runFolderSync();
+    expect(result).toBeDefined();
+    expect(typeof result.status).toBe("string");
+    expect(typeof result.supported).toBe("boolean");
+  });
+
+  it("renders SyncDialog in error state with remount guidance and reconnect actions", async () => {
+    const rootEl = document.createElement("div");
+    document.body.appendChild(rootEl);
+    const root = createRoot(rootEl);
+    const app = new AppState();
+    await app.init();
+
+    const originalGetState = localSync.getState;
+    localSync.getState = () => ({
+      status: "error",
+      folderName: "MyDrawings",
+      lastSyncedAt: null,
+      lastError: STALE_HANDLE_MESSAGE,
+      supported: true,
+      pendingConflicts: 0,
+    });
+
+    try {
+      await act(async () => {
+        app.openDialog({ type: "sync" });
+        root.render(createElement(AppDialogs, { app }));
+      });
+
+      expect(document.body.textContent).toContain("Sync Error");
+      expect(document.body.textContent).toContain("Reconnect to restore disk sync");
+      expect(document.body.querySelector("[data-testid=sync-reconnect-btn]")).not.toBeNull();
+      expect(document.body.querySelector("[data-testid=sync-unmap-btn]")).not.toBeNull();
+      expect(document.body.querySelector("[data-testid=sync-dismiss-btn]")).not.toBeNull();
+    } finally {
+      localSync.getState = originalGetState;
+      await act(async () => {
+        root.unmount();
+      });
+      rootEl.remove();
+    }
   });
 });
