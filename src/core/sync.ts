@@ -2,6 +2,8 @@ import {
   createExplorer,
   createLocalSync,
   isFolderSyncSupported,
+  isNotFoundError,
+  STALE_HANDLE_MESSAGE,
   type ConflictInfo,
   type Explorer,
   type ExplorerFileNode,
@@ -14,9 +16,11 @@ import {
 import type { AppState } from "../app-state";
 import { PdDocument, type BackgroundKind } from "./document";
 import type { BlendMode } from "./blend";
+import { idbDelete } from "./idb";
 import { Layer, noteLayerId } from "./layer";
 import { PixelBuffer } from "./pixel-buffer";
 
+export { STALE_HANDLE_MESSAGE, isNotFoundError };
 export type { ConflictInfo, Explorer, ExplorerFileNode, ExplorerFolderNode, ExplorerNode, LocalSync, LocalSyncState, SyncDocument };
 
 export interface SyncedLayerPayload {
@@ -138,6 +142,52 @@ export function documentFromSyncPayload(payload: SyncedDocumentPayload): PdDocum
 }
 
 let syncInitialized = false;
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function scheduleSyncWhenMapped(delayMs = 400): void {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    syncTimer = null;
+    if (localSync.getState().status === "mapped") {
+      void runFolderSync().catch(() => {
+        /* Non-fatal background sync */
+      });
+    }
+  }, delayMs);
+}
+
+export async function awaitSyncWhenMapped(): Promise<LocalSyncState | null> {
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+  if (localSync.getState().status === "mapped") {
+    try {
+      return await runFolderSync();
+    } catch {
+      return localSync.getState();
+    }
+  }
+  return null;
+}
+
+export async function clearAutosaveDocument(docId: string): Promise<void> {
+  try {
+    await idbDelete("autosave", docId);
+  } catch {
+    /* Non-fatal */
+  }
+}
+
+export async function seedOpenSessionsIntoSync(app: AppState): Promise<void> {
+  for (const session of app.sessions) {
+    try {
+      await syncSaveDocument(session.id, session.document);
+    } catch {
+      /* Non-fatal */
+    }
+  }
+}
 
 export async function initLocalSync(app: AppState): Promise<LocalSyncState> {
   if (syncInitialized) return localSync.getState();
@@ -150,11 +200,21 @@ export async function initLocalSync(app: AppState): Promise<LocalSyncState> {
   const state = await localSync.init();
 
   if (typeof window !== "undefined") {
-    window.addEventListener("focus", () => {
+    const triggerSync = () => {
       if (localSync.getState().status === "mapped") {
-        void localSync.sync();
+        void runFolderSync().catch(() => {
+          /* Non-fatal */
+        });
       }
-    });
+    };
+    window.addEventListener("focus", triggerSync);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          triggerSync();
+        }
+      });
+    }
   }
 
   return state;
@@ -169,6 +229,7 @@ export async function syncSaveDocument(docId: string, doc: PdDocument): Promise<
     } catch {
       /* Placement is best-effort */
     }
+    scheduleSyncWhenMapped();
   } catch {
     /* Non-fatal: local IDB remains primary */
   }
@@ -180,6 +241,8 @@ export async function syncDeleteDocument(docId: string): Promise<void> {
   } catch {
     /* Non-fatal */
   }
+  await clearAutosaveDocument(docId);
+  scheduleSyncWhenMapped();
 }
 
 export async function syncSavePref<T = unknown>(key: string, value: T): Promise<void> {

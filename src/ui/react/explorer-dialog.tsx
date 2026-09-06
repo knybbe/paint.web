@@ -10,7 +10,11 @@ import {
 } from "lucide-react";
 import type { AppState } from "@/app-state";
 import {
+  awaitSyncWhenMapped,
+  clearAutosaveDocument,
   explorer,
+  localSync,
+  scheduleSyncWhenMapped,
   type ExplorerFileNode,
   type ExplorerFolderNode,
   type ExplorerNode,
@@ -117,6 +121,7 @@ export function ExplorerDialog({ app }: { app: AppState }) {
     try {
       await explorer.createFolder(prompt.value, parentId);
       setPrompt(null);
+      scheduleSyncWhenMapped();
       await refresh();
     } catch (err) {
       const e = err as Error;
@@ -132,7 +137,11 @@ export function ExplorerDialog({ app }: { app: AppState }) {
     setError(null);
     try {
       await explorer.rename(selected, prompt.value);
+      if (selected.kind === "file") {
+        app.renameSession(selected.id, prompt.value);
+      }
       setPrompt(null);
+      scheduleSyncWhenMapped();
       await refresh();
     } catch (err) {
       const e = err as Error;
@@ -147,9 +156,21 @@ export function ExplorerDialog({ app }: { app: AppState }) {
     setError(null);
     try {
       await explorer.delete(node, { recursive: node.kind === "folder" });
-      if (node.kind === "file" && app.sessions.some((s) => s.id === node.id)) {
-        app.closeSessionFinal(node.id);
+      if (node.kind === "file") {
+        await clearAutosaveDocument(node.id);
+        if (app.sessions.some((s) => s.id === node.id)) {
+          app.closeSessionFinal(node.id);
+        }
+      } else if (node.kind === "folder") {
+        for (const session of [...app.sessions]) {
+          const doc = await localSync.get("documents", session.id);
+          if (!doc || doc.deletedAt) {
+            await clearAutosaveDocument(session.id);
+            app.closeSessionFinal(session.id);
+          }
+        }
       }
+      await awaitSyncWhenMapped();
       await refresh();
     } catch (err) {
       const e = err as Error;
@@ -164,10 +185,22 @@ export function ExplorerDialog({ app }: { app: AppState }) {
     setError(null);
     try {
       await explorer.permanentDelete(node, { recursive: node.kind === "folder" });
-      if (node.kind === "file" && app.sessions.some((s) => s.id === node.id)) {
-        app.closeSessionFinal(node.id);
+      if (node.kind === "file") {
+        await clearAutosaveDocument(node.id);
+        if (app.sessions.some((s) => s.id === node.id)) {
+          app.closeSessionFinal(node.id);
+        }
+      } else if (node.kind === "folder") {
+        for (const session of [...app.sessions]) {
+          const doc = await localSync.get("documents", session.id);
+          if (!doc || doc.deletedAt) {
+            await clearAutosaveDocument(session.id);
+            app.closeSessionFinal(session.id);
+          }
+        }
       }
       setConfirmPermanent(null);
+      await awaitSyncWhenMapped();
       await refresh();
     } catch (err) {
       const e = err as Error;
@@ -204,6 +237,7 @@ export function ExplorerDialog({ app }: { app: AppState }) {
     try {
       await explorer.move(moveTarget, newParentId);
       setMoveTarget(null);
+      scheduleSyncWhenMapped();
       await refresh();
     } catch (err) {
       const e = err as Error;
