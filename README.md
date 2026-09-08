@@ -4,6 +4,9 @@ An unofficial, fully offline-capable Progressive Web App inspired by **Paint.NET
 
 **Live:** [https://knybbe.github.io/paint.web/](https://knybbe.github.io/paint.web/)
 
+**Moved:** Development continues at https://github.com/yearlylabs/paint (Yearly Labs). This knybbe/paint.web repo is retained as a historical mirror and is no longer the active home.
+
+
 **Not affiliated with or endorsed by Rick Brewster or dotPDN LLC.** Paint.NET is a trademark of its respective owners. This project reimplements familiar behavior for the web; it does not use Paint.NET source code or proprietary assets.
 
 ## Features
