@@ -527,7 +527,16 @@ function SettingsDialog({ app }: { app: AppState }) {
     >
       <FormGrid>
         <Field label="Theme">
-          <Select value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
+          <Select
+            value={theme}
+            onValueChange={(v) => {
+              const nextTheme = v as typeof theme;
+              setTheme(nextTheme);
+              app.settings.theme = nextTheme;
+              app.applyTheme();
+              void app.persistSettings();
+            }}
+          >
             <SelectTrigger size="sm" className="h-8 min-h-8 rounded-md px-3 text-sm shadow-none">
               <SelectValue />
             </SelectTrigger>

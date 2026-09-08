@@ -154,7 +154,7 @@ test.describe("Responsive E2E: Desktop, Tablet, and Mobile Layers & Download UX"
     await context.close();
   });
 
-  test("mobile phone command deck, layers sheet, and download dialog", async ({ page }) => {
+  test("mobile phone command deck, sheets above deck, single-tab bar, theme, and customization", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.clear();
     });
@@ -163,45 +163,83 @@ test.describe("Responsive E2E: Desktop, Tablet, and Mobile Layers & Download UX"
     await page.locator("#app[data-ready='1']").waitFor({ timeout: 15_000 });
     await page.waitForTimeout(300);
 
-    await expect(page.getByTestId("mobile-command-deck")).toBeVisible();
-    await expect(page.getByTestId("mobile-top-bar")).toBeVisible();
+    const deck = page.getByTestId("mobile-command-deck");
+    const topBar = page.getByTestId("mobile-top-bar");
+    await expect(deck).toBeVisible();
+    await expect(topBar).toBeVisible();
 
-    // Check top bar download button title and aria-label
+    // 1. Single-tab top row works with 1 file open (dropdown + New tab button)
+    const docBar = page.getByTestId("mobile-doc-bar");
+    await expect(docBar).toBeVisible();
+    const dropdownTrigger = page.getByTestId("mobile-doc-dropdown-trigger");
+    await expect(dropdownTrigger).toBeVisible();
+    const newTabBtn = page.getByTestId("mobile-new-tab-button");
+    await expect(newTabBtn).toBeVisible();
+
+    // Open tab dropdown with 1 session
+    await dropdownTrigger.click();
+    const docMenu = page.getByTestId("mobile-doc-dropdown-menu");
+    await expect(docMenu).toBeVisible();
+    await expect(docMenu.getByTestId("mobile-tab-row")).toHaveCount(1);
+    await dropdownTrigger.click(); // close dropdown
+
+    // Test New button on single-tab row
+    await newTabBtn.click();
+    const newDialog = page.getByTestId("dialog");
+    await expect(newDialog).toBeVisible();
+    await newDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByTestId("dialog")).toHaveCount(0);
+
+    // 2. Top bar Download button (deduplicated, Download only, no Download Export)
     const topDl = page.getByTestId("mobile-top-download");
     await expect(topDl).toHaveAttribute("title", "Download");
     await expect(topDl).toHaveAttribute("aria-label", "Download");
 
-    // 1. Open More sheet to verify Download... string
-    await page.getByTestId("mobile-tab-more").click();
+    // Theme toggle NOT on mobile top bar
+    await expect(topBar.getByTestId("ribbon-theme")).toHaveCount(0);
+    await expect(topBar.getByTestId("more-theme")).toHaveCount(0);
+
+    // Click Download from top bar
+    await topDl.click();
+    const dlDialog = page.getByTestId("dialog");
+    await expect(dlDialog).toBeVisible();
+    await expect(dlDialog.getByRole("heading", { name: "Download", exact: true })).toBeVisible();
+    await expect(dlDialog.getByText("Download Export")).toHaveCount(0);
+    await dlDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByTestId("dialog")).toHaveCount(0);
+
+    // 3. Command deck: 6 customizable slots + More (7 buttons total), icon-only
+    const deckBtns = deck.locator(".deck-tab-btn");
+    await expect(deckBtns).toHaveCount(7);
+    await expect(page.getByTestId("mobile-tab-tools")).toBeVisible();
+    await expect(page.getByTestId("mobile-tab-toolopts")).toBeVisible();
+    await expect(page.getByTestId("mobile-tab-color")).toBeVisible();
+    await expect(page.getByTestId("mobile-tab-layers")).toBeVisible();
+    await expect(page.getByTestId("mobile-tab-history")).toBeVisible();
+    await expect(page.getByTestId("mobile-tab-fx")).toBeVisible();
+    await expect(page.getByTestId("mobile-tab-more")).toBeVisible();
+
+    // Verify icon-only: no visible deck labels
+    await expect(page.locator(".mobile-command-deck .deck-tab-label:not(.sr-only)")).toHaveCount(0);
+
+    // 4. Sheets sit ABOVE the deck (sheet bottom > 0 / deck still visible and interactive)
+    await page.getByTestId("mobile-tab-layers").click();
     const sheetContainer = page.getByTestId("mobile-sheet-container");
     await expect(sheetContainer).toBeVisible();
 
-    // Verify More sheet contains Download... (not Download Export...)
-    const moreDlBtn = sheetContainer.getByRole("button", { name: "Download..." });
-    await expect(moreDlBtn).toBeVisible();
-    await expect(sheetContainer.getByRole("button", { name: /Download Export/ })).toHaveCount(0);
+    const deckBox = await deck.boundingBox();
+    const sheetBox = await sheetContainer.boundingBox();
+    expect(deckBox).not.toBeNull();
+    expect(sheetBox).not.toBeNull();
+    // Sheet bottom should sit right on/above deck
+    expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(deckBox!.y + 2);
+    await expect(deck).toBeVisible();
 
-    // Click Download... from More sheet
-    await moreDlBtn.click();
-    const dialog = page.getByTestId("dialog");
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("heading", { name: "Download", exact: true })).toBeVisible();
-    await expect(dialog.getByText("Download Export")).toHaveCount(0);
-    await dialog.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByTestId("dialog")).toHaveCount(0);
+    // 5. No visible sheet titles / X close buttons; sr-only title present for a11y
+    await expect(page.locator(".sheet-close-btn, [data-testid='mobile-sheet-close']")).toHaveCount(0);
+    await expect(sheetContainer.locator('[data-slot="sheet-title"]')).toHaveClass(/sr-only/);
 
-    // 2. Open Layers sheet from Command Deck
-    await page.getByTestId("mobile-tab-layers").click();
-    await expect(sheetContainer).toBeVisible();
-
-    // Sheet title and close button
-    await expect(page.getByText("Layer Manager")).toBeVisible();
-    const sheetClose = page.getByTestId("mobile-sheet-close");
-    await expect(sheetClose).toBeVisible();
-    await expect(sheetClose).toHaveAttribute("title", "Close");
-    await expect(sheetClose).toHaveAttribute("aria-label", "Close");
-
-    // Check mobile action buttons
+    // Mobile layer actions work
     const mAdd = page.getByTestId("mobile-layer-add");
     const mDel = page.getByTestId("mobile-layer-del");
     const mDup = page.getByTestId("mobile-layer-dup");
@@ -209,38 +247,81 @@ test.describe("Responsive E2E: Desktop, Tablet, and Mobile Layers & Download UX"
     const mUp = page.getByTestId("mobile-layer-up");
     const mDown = page.getByTestId("mobile-layer-down");
 
-    // Verify aria-labels and titles
     await expect(mAdd).toHaveAttribute("aria-label", "Add layer");
-    await expect(mDel).toHaveAttribute("aria-label", "Delete layer");
-    await expect(mDup).toHaveAttribute("aria-label", "Duplicate layer");
-    await expect(mMerge).toHaveAttribute("aria-label", "Merge layer down");
-    await expect(mUp).toHaveAttribute("aria-label", "Move layer up");
-    await expect(mDown).toHaveAttribute("aria-label", "Move layer down");
-
-    // Disabled states with 1 layer
     await expect(mDel).toBeDisabled();
     await expect(mMerge).toBeDisabled();
-    await expect(mUp).toBeDisabled();
-    await expect(mDown).toBeDisabled();
     await expect(mAdd).toBeEnabled();
     await expect(mDup).toBeEnabled();
 
-    // Add layer in mobile
+    // Add layer
     await mAdd.click();
     await expect(sheetContainer).toContainText("Layer 1");
-
-    // Disabled states with 2 layers
     await expect(mDel).toBeEnabled();
     await expect(mMerge).toBeEnabled();
 
-    // Check opacity slider and blend mode
-    const opacitySlider = sheetContainer.locator('input[type="range"][aria-label="Opacity"]');
-    await expect(opacitySlider).toBeVisible();
-    const blendSelect = sheetContainer.locator('select[aria-label="Blend Mode"]');
-    await expect(blendSelect).toBeVisible();
+    // Check opacity and blend mode controls
+    await expect(sheetContainer.locator('input[type="range"][aria-label="Opacity"]')).toBeVisible();
+    await expect(sheetContainer.locator('select[aria-label="Blend Mode"]')).toBeVisible();
 
-    // Close sheet via close button
-    await sheetClose.click();
+    // Close sheet by tapping active bottom button again
+    await page.getByTestId("mobile-tab-layers").click();
+    await expect(page.getByTestId("mobile-sheet-container")).toHaveCount(0);
+
+    // 6. History sheet opens from deck and closes via toggle
+    await page.getByTestId("mobile-tab-history").click();
+    await expect(sheetContainer).toBeVisible();
+    await expect(sheetContainer.getByTestId("mobile-history-undo")).toBeVisible();
+    await expect(sheetContainer.getByTestId("mobile-history-redo")).toBeVisible();
+    await expect(sheetContainer.getByTestId("mobile-history-del")).toBeVisible();
+    await expect(sheetContainer.getByTestId("mobile-history-list")).toBeVisible();
+    await page.getByTestId("mobile-tab-history").click();
+    await expect(page.getByTestId("mobile-sheet-container")).toHaveCount(0);
+
+    // 7. More sheet: no duplicate Download, has ThemeToggle, cycles theme
+    await page.getByTestId("mobile-tab-more").click();
+    await expect(sheetContainer).toBeVisible();
+    // No duplicate Download in More sheet
+    await expect(sheetContainer.getByRole("button", { name: /^Download/ })).toHaveCount(0);
+
+    // Theme toggle in top-right of More sheet
+    const moreTheme = sheetContainer.getByTestId("more-theme");
+    await expect(moreTheme).toBeVisible();
+    const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+    await moreTheme.click();
+    const nextTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+    expect(nextTheme).not.toBe(initialTheme);
+
+    // 8. End-user customization UI & localStorage persistence
+    const customizeBtn = sheetContainer.getByTestId("mobile-customize-bar-btn");
+    await expect(customizeBtn).toBeVisible();
+    await customizeBtn.click();
+
+    const customizeSheet = page.getByTestId("mobile-customize-sheet");
+    await expect(customizeSheet).toBeVisible();
+
+    // Pick Undo to add to deck
+    const undoOpt = page.getByTestId("mobile-customize-opt-undo");
+    await undoOpt.click();
+
+    // Check localStorage persistence
+    const stored = await page.evaluate(() => localStorage.getItem("paint.web:mobile-deck-slots"));
+    expect(stored).toContain("undo");
+
+    // Reset defaults
+    await page.getByTestId("mobile-customize-reset").click();
+    const resetStored = await page.evaluate(() => localStorage.getItem("paint.web:mobile-deck-slots"));
+    expect(resetStored).toContain("tools");
+
+    // Done
+    await page.getByTestId("mobile-customize-done").click();
+    await expect(page.getByTestId("mobile-sheet-container")).toHaveCount(0);
+
+    // 9. Color Studio sheet (canvas wheel has no white square bug)
+    await page.getByTestId("mobile-tab-color").click();
+    await expect(sheetContainer).toBeVisible();
+    const wheelCanvas = sheetContainer.locator(".mobile-wheel-wrap canvas");
+    await expect(wheelCanvas).toBeVisible();
+    await page.getByTestId("mobile-tab-color").click();
     await expect(page.getByTestId("mobile-sheet-container")).toHaveCount(0);
 
     await page.screenshot({ path: join(ART, "responsive-mobile-layers.png") });

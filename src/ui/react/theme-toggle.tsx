@@ -8,7 +8,15 @@ function SvgIcon({ svg }: { svg: string }) {
   return <span className="icon" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-export function ThemeToggle({ app, className }: { app: AppState; className?: string }) {
+export function ThemeToggle({
+  app,
+  className,
+  testId = "ribbon-theme",
+}: {
+  app: AppState;
+  className?: string;
+  testId?: string;
+}) {
   useAppEvents(app, ["theme"]);
   const pref = app.settings.theme;
   const resolved = resolveTheme(pref);
@@ -19,7 +27,7 @@ export function ThemeToggle({ app, className }: { app: AppState; className?: str
       type="button"
       className={cn("chrome-icon-btn", className)}
       title={`Theme: ${label} — click for System / Light / Dark`}
-      data-testid="ribbon-theme"
+      data-testid={testId}
       aria-label={`Theme ${label}`}
       onClick={() => {
         app.settings.theme = cycleThemePref(pref);

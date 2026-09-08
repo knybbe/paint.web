@@ -291,6 +291,11 @@ export const UI_ICONS: Record<string, string> = {
   ),
   arrowUp: icon(`<path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`),
   arrowDown: icon(`<path d="M12 5v14M19 12l-7 7-7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`),
+  tune: icon(
+    `<path d="M4 8h8M16 8h4M4 16h4M12 16h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+     <circle cx="14" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+     <circle cx="10" cy="16" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/>`,
+  ),
 };
 
 export function svgEl(svg: string, className?: string): HTMLElement {
