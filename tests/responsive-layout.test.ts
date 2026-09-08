@@ -81,7 +81,7 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     const actions = topBar.querySelector(".mobile-top-actions");
     expect(actions).toBeTruthy();
     const actionBtns = actions!.querySelectorAll(".mobile-action-btn");
-    expect(actionBtns.length).toBe(5); // undo, redo, fit, theme, save
+    expect(actionBtns.length).toBe(4); // undo, redo, fit, download (theme moved to More sheet)
 
     const title = topBar.querySelector(".mobile-top-title");
     expect(title).toBeTruthy();
@@ -90,7 +90,7 @@ describe("Responsive layouts at 390px (phone), 768px (tablet), and 1280px (deskt
     const deck = document.querySelector('[data-testid="mobile-command-deck"]');
     expect(deck).toBeTruthy();
     const deckBtns = deck!.querySelectorAll(".deck-tab-btn");
-    expect(deckBtns.length).toBe(5); // tools, color, layers, fx, more
+    expect(deckBtns.length).toBe(7); // 6 customizable slots + more
 
     const pill = document.querySelector('[data-testid="mobile-context-pill"]');
     expect(pill).toBeTruthy();

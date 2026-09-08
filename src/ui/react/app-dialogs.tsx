@@ -527,7 +527,16 @@ function SettingsDialog({ app }: { app: AppState }) {
     >
       <FormGrid>
         <Field label="Theme">
-          <Select value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
+          <Select
+            value={theme}
+            onValueChange={(v) => {
+              const nextTheme = v as typeof theme;
+              setTheme(nextTheme);
+              app.settings.theme = nextTheme;
+              app.applyTheme();
+              void app.persistSettings();
+            }}
+          >
             <SelectTrigger size="sm" className="h-8 min-h-8 rounded-md px-3 text-sm shadow-none">
               <SelectValue />
             </SelectTrigger>
@@ -583,7 +592,7 @@ function ShortcutsDialog({ app }: { app: AppState }) {
           <b>Ctrl+Z/Y</b> undo/redo · <b>Ctrl+C/X/V</b> copy/cut/paste · <b>Delete</b> erase · <b>Backspace</b> fill
         </li>
         <li>
-          <b>Ctrl+N/O</b> new/open · <b>Ctrl+Shift+S</b> download export · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
+          <b>Ctrl+N/O</b> new/open · <b>Ctrl+Shift+S</b> download · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
         </li>
         <li>
           <b>Space+drag</b> pan · <b>Wheel / pinch</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> fit to view
@@ -598,7 +607,7 @@ function DownloadDialog({ app, format }: { app: AppState; format: SaveFormat }) 
   const [fmt, setFmt] = useState<SaveFormat>(format);
   return (
     <AppDialogShell
-      title="Download Export"
+      title="Download"
       primary="Download"
       onClose={() => app.closeDialog()}
       onPrimary={() => {

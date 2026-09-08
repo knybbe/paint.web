@@ -20,11 +20,12 @@ function SheetPortal({ ...props }: React.ComponentProps<typeof SheetPrimitive.Po
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 }
 
-function SheetOverlay({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+function SheetOverlay({ className, onClick, ...props }: React.ComponentProps<"div">) {
   return (
-    <SheetPrimitive.Overlay
+    <div
       data-slot="sheet-overlay"
       className={cn("fixed inset-0 z-[1600] bg-background/70", className)}
+      onClick={onClick}
       {...props}
     />
   );
@@ -36,17 +37,19 @@ function SheetContent({
   side = "bottom",
   overlayClassName,
   overlayTestId,
+  onOverlayClick,
   showCloseButton = false,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left";
   overlayClassName?: string;
   overlayTestId?: string;
+  onOverlayClick?: () => void;
   showCloseButton?: boolean;
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay className={overlayClassName} data-testid={overlayTestId} />
+      <SheetOverlay className={overlayClassName} data-testid={overlayTestId} onClick={onOverlayClick} />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         data-side={side}

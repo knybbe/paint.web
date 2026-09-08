@@ -7,7 +7,7 @@ import { BLEND_MODES, type BlendMode } from "../core/blend";
 import { hsvToRgb, rgbToHsv, fromHex, cssRgba, type Color } from "../core/color";
 import { openCommandPalette } from "./react/command-palette";
 
-export type MobileSheet = "none" | "tools" | "toolOpts" | "color" | "layers" | "fx" | "more";
+export type MobileSheet = "none" | "tools" | "toolOpts" | "color" | "layers" | "history" | "fx" | "more" | "customize";
 
 export function mobileSheetTitle(sheet: MobileSheet, app: AppState): string {
   if (sheet === "toolOpts") return `${getTool(app.currentTool).name} Options`;
@@ -17,10 +17,12 @@ export function mobileSheetTitle(sheet: MobileSheet, app: AppState): string {
     toolOpts: "",
     color: "Color Studio",
     layers: "Layer Manager",
+    history: "History",
     fx: "Adjustments & Effects",
     more: "Commands & Settings",
+    customize: "Customize Bottom Bar",
   };
-  return titles[sheet];
+  return titles[sheet] ?? "";
 }
 
 export function contextChipLabel(app: AppState): string {
@@ -40,13 +42,154 @@ export function contextChipLabel(app: AppState): string {
   return detail ? `${curTool.name} (${detail})` : curTool.name;
 }
 
-export function renderMobileSheetBody(sheet: MobileSheet, app: AppState, onDone: () => void): HTMLElement {
+export type DeckSlotId =
+  | "tools"
+  | "toolOpts"
+  | "color"
+  | "layers"
+  | "history"
+  | "fx"
+  | "undo"
+  | "redo"
+  | "fit"
+  | "crop";
+
+export interface DeckSlotDef {
+  id: DeckSlotId;
+  label: string;
+  testid: string;
+  sheet?: MobileSheet;
+  run?: (app: AppState) => void;
+  getIcon: (app: AppState) => string;
+}
+
+export const ALL_DECK_SLOTS: Record<DeckSlotId, DeckSlotDef> = {
+  tools: {
+    id: "tools",
+    label: "Tools",
+    testid: "mobile-tab-tools",
+    sheet: "tools",
+    getIcon: (app) => TOOL_SVG[app.currentTool] || TOOL_SVG.paintbrush,
+  },
+  toolOpts: {
+    id: "toolOpts",
+    label: "Tool Options",
+    testid: "mobile-tab-toolopts",
+    sheet: "toolOpts",
+    getIcon: () => UI_ICONS.tune,
+  },
+  color: {
+    id: "color",
+    label: "Color",
+    testid: "mobile-tab-color",
+    sheet: "color",
+    getIcon: () => UI_ICONS.palette,
+  },
+  layers: {
+    id: "layers",
+    label: "Layers",
+    testid: "mobile-tab-layers",
+    sheet: "layers",
+    getIcon: () => UI_ICONS.layers,
+  },
+  history: {
+    id: "history",
+    label: "History",
+    testid: "mobile-tab-history",
+    sheet: "history",
+    getIcon: () => UI_ICONS.history,
+  },
+  fx: {
+    id: "fx",
+    label: "FX",
+    testid: "mobile-tab-fx",
+    sheet: "fx",
+    getIcon: () => UI_ICONS.fx,
+  },
+  undo: {
+    id: "undo",
+    label: "Undo",
+    testid: "mobile-tab-undo",
+    run: (app) => app.undo(),
+    getIcon: () => UI_ICONS.undo,
+  },
+  redo: {
+    id: "redo",
+    label: "Redo",
+    testid: "mobile-tab-redo",
+    run: (app) => app.redo(),
+    getIcon: () => UI_ICONS.redo,
+  },
+  fit: {
+    id: "fit",
+    label: "Fit",
+    testid: "mobile-tab-fit",
+    run: (app) => app.fitToView(),
+    getIcon: () => UI_ICONS.fit,
+  },
+  crop: {
+    id: "crop",
+    label: "Crop",
+    testid: "mobile-tab-crop",
+    run: (app) => app.cropToSelection(),
+    getIcon: () => UI_ICONS.crop,
+  },
+};
+
+export const DEFAULT_DECK_SLOTS: DeckSlotId[] = [
+  "tools",
+  "toolOpts",
+  "color",
+  "layers",
+  "history",
+  "fx",
+];
+
+const DECK_SLOTS_STORAGE_KEY = "paint.web:mobile-deck-slots";
+
+export function loadDeckSlots(): DeckSlotId[] {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(DECK_SLOTS_STORAGE_KEY) : null;
+    if (!raw) return [...DEFAULT_DECK_SLOTS];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length === 6) {
+      const valid = parsed.every(
+        (id): id is DeckSlotId => typeof id === "string" && id in ALL_DECK_SLOTS && id !== ("more" as string),
+      );
+      const unique = new Set(parsed).size === 6;
+      if (valid && unique) {
+        return parsed;
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return [...DEFAULT_DECK_SLOTS];
+}
+
+export function saveDeckSlots(slots: DeckSlotId[]): void {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(DECK_SLOTS_STORAGE_KEY, JSON.stringify(slots));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function renderMobileSheetBody(
+  sheet: MobileSheet,
+  app: AppState,
+  onDone: () => void,
+  callbacks?: { onOpenCustomize?: () => void },
+): HTMLElement {
   if (sheet === "tools") return renderToolsSheet(app, onDone);
   if (sheet === "toolOpts") return renderToolOptionsSheet(app, onDone);
   if (sheet === "color") return renderColorSheet(app);
   if (sheet === "layers") return renderLayersSheet(app);
+  if (sheet === "history") return renderHistorySheet(app);
   if (sheet === "fx") return renderFxSheet(app, onDone);
-  if (sheet === "more") return renderMoreSheet(app, onDone);
+  if (sheet === "more") return renderMoreSheet(app, onDone, callbacks?.onOpenCustomize);
   return document.createElement("div");
 }
 
@@ -351,13 +494,20 @@ function renderLayersSheet(app: AppState): HTMLElement {
   const actionRow = document.createElement("div");
   actionRow.className = "mobile-layers-actions";
 
+  const layerCount = app.document.layers.length;
+  const activeIndex = app.document.activeIndex;
+  const canDelete = layerCount > 1;
+  const canMerge = activeIndex > 0;
+  const canMoveUp = activeIndex >= 0 && activeIndex < layerCount - 1;
+  const canMoveDown = activeIndex > 0;
+
   actionRow.append(
-    touchBtnWithIcon(UI_ICONS.addLayer, "Add", () => app.addLayer(), false, "mobile-layer-add"),
-    touchBtnWithIcon(UI_ICONS.duplicateLayer, "Duplicate", () => app.duplicateLayer(), false, "mobile-layer-dup"),
-    touchBtnWithIcon(UI_ICONS.arrowUp, "Up", () => app.moveActiveLayer(1), app.document.activeIndex >= app.document.layers.length - 1, "mobile-layer-up"),
-    touchBtnWithIcon(UI_ICONS.arrowDown, "Down", () => app.moveActiveLayer(-1), app.document.activeIndex <= 0, "mobile-layer-down"),
-    touchBtnWithIcon(UI_ICONS.merge, "Merge", () => app.mergeDown(), app.document.activeIndex <= 0, "mobile-layer-merge"),
-    touchBtnWithIcon(UI_ICONS.deleteLayer, "Delete", () => app.deleteLayer(), app.document.layers.length <= 1, "mobile-layer-del"),
+    touchBtnWithIcon(UI_ICONS.addLayer, "Add", () => app.addLayer(), false, "mobile-layer-add", "Add layer"),
+    touchBtnWithIcon(UI_ICONS.duplicateLayer, "Duplicate", () => app.duplicateLayer(), false, "mobile-layer-dup", "Duplicate layer"),
+    touchBtnWithIcon(UI_ICONS.arrowUp, "Up", () => app.moveActiveLayer(1), !canMoveUp, "mobile-layer-up", "Move layer up"),
+    touchBtnWithIcon(UI_ICONS.arrowDown, "Down", () => app.moveActiveLayer(-1), !canMoveDown, "mobile-layer-down", "Move layer down"),
+    touchBtnWithIcon(UI_ICONS.merge, "Merge", () => app.mergeDown(), !canMerge, "mobile-layer-merge", "Merge layer down"),
+    touchBtnWithIcon(UI_ICONS.deleteLayer, "Delete", () => app.deleteLayer(), !canDelete, "mobile-layer-del", "Delete layer"),
   );
   container.append(actionRow);
 
@@ -373,6 +523,8 @@ function renderLayersSheet(app: AppState): HTMLElement {
     const eyeBtn = document.createElement("button");
     eyeBtn.type = "button";
     eyeBtn.className = "mobile-layer-eye";
+    eyeBtn.title = layer.visible ? "Hide layer" : "Show layer";
+    eyeBtn.setAttribute("aria-label", eyeBtn.title);
     eyeBtn.append(svgEl(layer.visible ? UI_ICONS.eye : UI_ICONS.eyeOff));
     eyeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -386,10 +538,12 @@ function renderLayersSheet(app: AppState): HTMLElement {
     const thumb = document.createElement("img");
     thumb.className = "mobile-layer-thumb";
     thumb.src = layer.thumbnailDataUrl(48);
+    thumb.alt = "";
 
     const name = document.createElement("span");
     name.className = "mobile-layer-name";
-    name.textContent = layer.name;
+    name.title = layer.name;
+    name.textContent = layer.name + (layer.locked ? " 🔒" : "");
 
     item.append(eyeBtn, thumb, name);
     item.addEventListener("click", () => {
@@ -419,6 +573,8 @@ function renderLayersSheet(app: AppState): HTMLElement {
   blendLabel.textContent = "Blend Mode: ";
   const blendSel = document.createElement("select");
   blendSel.className = "touch-select";
+  blendSel.title = "Blend Mode";
+  blendSel.setAttribute("aria-label", "Blend Mode");
   for (const m of BLEND_MODES) {
     const opt = document.createElement("option");
     opt.value = m;
@@ -435,6 +591,101 @@ function renderLayersSheet(app: AppState): HTMLElement {
   propGroup.append(blendLabel);
 
   container.append(propGroup);
+  return container;
+}
+
+function renderHistorySheet(app: AppState): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "mobile-history-sheet";
+
+  const tl = app.history.timeline;
+  const pos = app.history.position;
+
+  // Actions row
+  const actionRow = document.createElement("div");
+  actionRow.className = "mobile-history-actions";
+
+  const undoBtn = touchBtnWithIcon(
+    UI_ICONS.undo,
+    "Undo",
+    () => {
+      app.undo();
+      app.notify("history");
+    },
+    !app.history.canUndo,
+    "mobile-history-undo",
+    "Undo",
+  );
+  const redoBtn = touchBtnWithIcon(
+    UI_ICONS.redo,
+    "Redo",
+    () => {
+      app.redo();
+      app.notify("history");
+    },
+    !app.history.canRedo,
+    "mobile-history-redo",
+    "Redo",
+  );
+  const deleteBtn = touchBtnWithIcon(
+    UI_ICONS.deleteLayer,
+    "Delete",
+    () => {
+      if (pos > 0) {
+        app.deleteHistoryEntry(pos);
+        app.notify("history");
+      }
+    },
+    pos === 0,
+    "mobile-history-del",
+    "Delete current step",
+  );
+
+  actionRow.append(undoBtn, redoBtn, deleteBtn);
+  container.append(actionRow);
+
+  // Timeline list
+  const list = document.createElement("div");
+  list.className = "mobile-history-list";
+  list.setAttribute("data-testid", "mobile-history-list");
+
+  tl.forEach((item) => {
+    const row = document.createElement("div");
+    const isCur = item.index === pos;
+    const isFut = item.index > pos;
+    row.className = `mobile-history-row ${isCur ? "current" : isFut ? "future" : ""}`;
+    row.setAttribute("data-testid", `mobile-history-step-${item.index}`);
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "mobile-history-name";
+    nameSpan.textContent = item.name;
+    row.append(nameSpan);
+
+    if (item.index > 0) {
+      const delStepBtn = document.createElement("button");
+      delStepBtn.type = "button";
+      delStepBtn.className = "mobile-history-step-del";
+      delStepBtn.setAttribute("data-testid", `mobile-history-delete-${item.index}`);
+      delStepBtn.title = `Delete ${item.name}`;
+      delStepBtn.setAttribute("aria-label", `Delete ${item.name}`);
+      delStepBtn.textContent = "×";
+      delStepBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        app.deleteHistoryEntry(item.index);
+        app.notify("history");
+      });
+      row.append(delStepBtn);
+    }
+
+    row.addEventListener("click", () => {
+      app.jumpToHistory(item.index);
+      app.notify("history");
+    });
+
+    list.append(row);
+  });
+
+  container.append(list);
   return container;
 }
 
@@ -483,7 +734,7 @@ function renderFxSheet(app: AppState, onDone: () => void): HTMLElement {
   return container;
 }
 
-function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
+function renderMoreSheet(app: AppState, onDone: () => void, onOpenCustomize?: () => void): HTMLElement {
   const container = document.createElement("div");
   container.className = "mobile-more-sheet";
 
@@ -494,7 +745,6 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
         { label: "Search commands", icon: UI_ICONS.search, action: () => openCommandPalette() },
         { label: "New", icon: UI_ICONS.new, action: () => app.openDialog({ type: "new" }) },
         { label: "Open", icon: UI_ICONS.open, action: () => void app.openFiles() },
-        { label: "Download Export...", icon: UI_ICONS.download, action: () => void app.download() },
         { label: "Folder Sync...", icon: UI_ICONS.sync, action: () => app.openDialog({ type: "sync" }) },
         { label: "Explorer...", icon: UI_ICONS.open, action: () => app.openDialog({ type: "explorer" }) },
         { label: "Print", icon: UI_ICONS.save, action: () => app.print() },
@@ -516,6 +766,7 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
     {
       title: "View & Settings",
       items: [
+        { label: "Customize bottom bar", icon: UI_ICONS.settings, action: () => onOpenCustomize?.() },
         { label: "Settings", icon: UI_ICONS.settings, action: () => app.openDialog({ type: "settings" }) },
         { label: "Keyboard Shortcuts", icon: UI_ICONS.settings, action: () => app.openDialog({ type: "shortcuts" }) },
         { label: "About paint.web", icon: UI_ICONS.more, action: () => app.openDialog({ type: "about" }) },
@@ -581,11 +832,13 @@ function touchButton(label: string, on: () => void, primary = false): HTMLButton
   return b;
 }
 
-function touchBtnWithIcon(svg: string, label: string, on: () => void, disabled = false, testid?: string): HTMLButtonElement {
+function touchBtnWithIcon(svg: string, label: string, on: () => void, disabled = false, testid?: string, ariaLabel?: string): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "touch-icon-btn";
   b.disabled = disabled;
+  b.title = ariaLabel ?? label;
+  b.setAttribute("aria-label", ariaLabel ?? label);
   if (testid) b.dataset.testid = testid;
   b.append(svgEl(svg));
   const span = document.createElement("span");
@@ -613,6 +866,8 @@ function touchSlider(label: string, val: number, min: number, max: number, unit:
   range.min = String(min);
   range.max = String(max);
   range.value = String(val);
+  range.title = label;
+  range.setAttribute("aria-label", label);
 
   range.addEventListener("input", () => {
     num.textContent = `${range.value}${unit}`;
@@ -695,31 +950,47 @@ function drawMobileWheel(canvas: HTMLCanvasElement, activeColor: Color): void {
     ctx.fill();
   }
 
-  // Inner saturation/brightness square or circle
+  // Inner saturation/brightness circle (drawn into temp canvas and clipped so hue ring is never overwritten)
   const tri = inner - 6;
-  const imgData = ctx.createImageData(Math.floor(tri * 2), Math.floor(tri * 2));
-  const curHsv = rgbToHsv(activeColor);
+  const size = Math.max(1, Math.floor(tri * 2));
+  const temp = typeof OffscreenCanvas !== "undefined"
+    ? new OffscreenCanvas(size, size)
+    : document.createElement("canvas");
+  temp.width = size;
+  temp.height = size;
+  const tempCtx = temp.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+  if (tempCtx) {
+    const imgData = tempCtx.createImageData(size, size);
+    const curHsv = rgbToHsv(activeColor);
 
-  for (let y = 0; y < imgData.height; y++) {
-    for (let x = 0; x < imgData.width; x++) {
-      const dx = x - tri;
-      const dy = y - tri;
-      const dist = Math.hypot(dx, dy);
-      const idx = (y * imgData.width + x) * 4;
-      if (dist <= tri) {
-        const sat = clamp01((dx / tri + 1) / 2);
-        const val = clamp01(1 - (dy / tri + 1) / 2);
-        const rgb = hsvToRgb(curHsv.h, sat, val, 1);
-        imgData.data[idx] = rgb.r;
-        imgData.data[idx + 1] = rgb.g;
-        imgData.data[idx + 2] = rgb.b;
-        imgData.data[idx + 3] = 255;
-      } else {
-        imgData.data[idx + 3] = 0;
+    for (let y = 0; y < imgData.height; y++) {
+      for (let x = 0; x < imgData.width; x++) {
+        const dx = x - tri;
+        const dy = y - tri;
+        const dist = Math.hypot(dx, dy);
+        const idx = (y * imgData.width + x) * 4;
+        if (dist <= tri) {
+          const sat = clamp01((dx / tri + 1) / 2);
+          const val = clamp01(1 - (dy / tri + 1) / 2);
+          const rgb = hsvToRgb(curHsv.h, sat, val, 1);
+          imgData.data[idx] = rgb.r;
+          imgData.data[idx + 1] = rgb.g;
+          imgData.data[idx + 2] = rgb.b;
+          imgData.data[idx + 3] = 255;
+        } else {
+          imgData.data[idx + 3] = 0;
+        }
       }
     }
+    tempCtx.putImageData(imgData, 0, 0);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, tri, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(temp as CanvasImageSource, cx - tri, cy - tri);
+    ctx.restore();
   }
-  ctx.putImageData(imgData, cx - tri, cy - tri);
 }
 
 function bindWheelTouch(canvas: HTMLCanvasElement, app: AppState): void {

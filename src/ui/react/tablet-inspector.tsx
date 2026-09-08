@@ -25,11 +25,15 @@ function TabletInspectorBar({ app }: { app: AppState }) {
   if (!pane) return null;
   return (
     <div className="tablet-inspector-bar" data-testid="tablet-inspector-bar">
-      <div className="tablet-seg">
+      <div className="tablet-seg" role="tablist" aria-label="Tablet inspector panes">
         {PANES.map((p) => (
           <button
             key={p.id}
             type="button"
+            role="tab"
+            aria-selected={pane === p.id}
+            aria-label={`${p.label} pane`}
+            title={`${p.label} pane`}
             className={pane === p.id ? "active" : ""}
             data-testid={`tablet-pane-${p.id}`}
             onClick={() => setTabletInspectorPane(app, p.id)}
@@ -38,7 +42,14 @@ function TabletInspectorBar({ app }: { app: AppState }) {
           </button>
         ))}
       </div>
-      <button type="button" className="tablet-inspector-close" title="Hide inspector" onClick={() => setTabletInspectorPane(app, null)}>
+      <button
+        type="button"
+        className="tablet-inspector-close"
+        title="Hide inspector"
+        aria-label="Hide inspector"
+        data-testid="tablet-inspector-close"
+        onClick={() => setTabletInspectorPane(app, null)}
+      >
         ✕
       </button>
     </div>

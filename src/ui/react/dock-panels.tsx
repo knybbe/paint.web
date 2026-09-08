@@ -31,7 +31,7 @@ function WindowFrame({
     <section className="pdn-win" data-testid={testId}>
       <div className="title">
         <span>{title}</span>
-        <button type="button" title="Close" onClick={onClose}>
+        <button type="button" title={`Close ${title}`} aria-label={`Close ${title}`} onClick={onClose}>
           ×
         </button>
       </div>
@@ -44,6 +44,13 @@ function LayersPanel({ app }: { app: AppState }) {
   useAppEvents(app, ["layers", "windows", "history", "sessions"]);
   if (!app.windows.layers) return null;
   const active = app.document.activeLayer;
+  const activeIndex = app.document.activeIndex;
+  const layerCount = app.document.layers.length;
+  const canDelete = layerCount > 1;
+  const canMerge = activeIndex > 0;
+  const canMoveUp = activeIndex >= 0 && activeIndex < layerCount - 1;
+  const canMoveDown = activeIndex > 0;
+
   return (
     <WindowFrame title="Layers" testId="window-layers" onClose={() => app.toggleWindow("layers")}>
       <div className="layers-list">
@@ -77,7 +84,8 @@ function LayersPanel({ app }: { app: AppState }) {
             <button
               type="button"
               className="icon-btn"
-              title="Visibility"
+              title={layer.visible ? "Hide layer" : "Show layer"}
+              aria-label={layer.visible ? "Hide layer" : "Show layer"}
               onClick={(e) => {
                 e.stopPropagation();
                 layer.visible = !layer.visible;
@@ -92,7 +100,7 @@ function LayersPanel({ app }: { app: AppState }) {
             <div className="thumb">
               {thumb ? <img alt="" src={thumb} /> : null}
             </div>
-            <span>
+            <span title={layer.name}>
               {layer.name}
               {layer.locked ? " 🔒" : ""}
             </span>
@@ -101,27 +109,76 @@ function LayersPanel({ app }: { app: AppState }) {
         })}
       </div>
       <div className="layer-actions">
-        <button type="button" className="icon-btn" title="Add" onClick={() => app.addLayer()}>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Add"
+          aria-label="Add layer"
+          data-testid="layer-add-btn"
+          onClick={() => app.addLayer()}
+        >
           <SvgIcon svg={UI_ICONS.addLayer} />
         </button>
-        <button type="button" className="icon-btn" title="Delete" onClick={() => app.deleteLayer()}>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Delete"
+          aria-label="Delete layer"
+          data-testid="layer-delete-btn"
+          disabled={!canDelete}
+          onClick={() => app.deleteLayer()}
+        >
           <SvgIcon svg={UI_ICONS.deleteLayer} />
         </button>
-        <button type="button" className="icon-btn" title="Duplicate" onClick={() => app.duplicateLayer()}>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Duplicate"
+          aria-label="Duplicate layer"
+          data-testid="layer-dup-btn"
+          onClick={() => app.duplicateLayer()}
+        >
           <SvgIcon svg={UI_ICONS.duplicateLayer} />
         </button>
-        <button type="button" className="icon-btn" title="Merge Down" onClick={() => app.mergeDown()}>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Merge Down"
+          aria-label="Merge layer down"
+          data-testid="layer-merge-btn"
+          disabled={!canMerge}
+          onClick={() => app.mergeDown()}
+        >
           <SvgIcon svg={UI_ICONS.merge} />
         </button>
-        <button type="button" className="icon-btn" title="Move Up" onClick={() => app.moveActiveLayer(1)}>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Move Up"
+          aria-label="Move layer up"
+          data-testid="layer-up-btn"
+          disabled={!canMoveUp}
+          onClick={() => app.moveActiveLayer(1)}
+        >
           <SvgIcon svg={UI_ICONS.arrowUp} />
         </button>
-        <button type="button" className="icon-btn" title="Move Down" onClick={() => app.moveActiveLayer(-1)}>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Move Down"
+          aria-label="Move layer down"
+          data-testid="layer-down-btn"
+          disabled={!canMoveDown}
+          onClick={() => app.moveActiveLayer(-1)}
+        >
           <SvgIcon svg={UI_ICONS.arrowDown} />
         </button>
       </div>
       <LayerOpacitySlider app={app} layerId={active.id} opacity={active.opacity} />
       <select
+        className="layer-blend-select"
+        title="Layer blend mode"
+        aria-label="Layer blend mode"
         value={active.blendMode}
         onChange={(e) => {
           active.blendMode = e.target.value as BlendMode;
@@ -146,12 +203,14 @@ function LayerOpacitySlider({ app, layerId, opacity }: { app: AppState; layerId:
   }, [layerId, opacity]);
   return (
     <div className="opacity-row">
-      Opacity
+      <span className="opacity-label">Opacity</span>
       <input
         type="range"
         min={0}
         max={255}
         value={live}
+        title="Layer opacity"
+        aria-label="Layer opacity"
         onInput={(e) => {
           const v = Number((e.target as HTMLInputElement).value);
           setLive(v);
@@ -164,7 +223,7 @@ function LayerOpacitySlider({ app, layerId, opacity }: { app: AppState; layerId:
           app.notify("layers");
         }}
       />
-      <span>{Math.round((live / 255) * 100)}%</span>
+      <span className="opacity-val">{Math.round((live / 255) * 100)}%</span>
     </div>
   );
 }

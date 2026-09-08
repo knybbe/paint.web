@@ -192,6 +192,7 @@ function TitleRow({ app }: { app: AppState }) {
           type="button"
           className="chrome-icon-btn"
           title={app.history.canUndo ? `Undo ${app.history.undoName} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
+          aria-label={app.history.canUndo ? `Undo ${app.history.undoName} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
           disabled={!app.history.canUndo}
           data-testid="ribbon-undo"
           onClick={() => app.undo()}
@@ -202,6 +203,7 @@ function TitleRow({ app }: { app: AppState }) {
           type="button"
           className="chrome-icon-btn"
           title={app.history.canRedo ? `Redo ${app.history.redoName} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
+          aria-label={app.history.canRedo ? `Redo ${app.history.redoName} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
           disabled={!app.history.canRedo}
           data-testid="ribbon-redo"
           onClick={() => app.redo()}
@@ -211,7 +213,8 @@ function TitleRow({ app }: { app: AppState }) {
         <button
           type="button"
           className="chrome-icon-btn"
-          title="Download Export (Ctrl+Shift+S)"
+          title="Download (Ctrl+Shift+S)"
+          aria-label="Download (Ctrl+Shift+S)"
           data-testid="ribbon-download"
           onClick={() => void app.download()}
         >
@@ -221,6 +224,7 @@ function TitleRow({ app }: { app: AppState }) {
           type="button"
           className="chrome-icon-btn"
           title="Folder Sync (Ctrl+Shift+U)"
+          aria-label="Folder Sync (Ctrl+Shift+U)"
           data-testid="ribbon-sync"
           onClick={() => app.openDialog({ type: "sync" })}
         >
