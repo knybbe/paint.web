@@ -1250,15 +1250,15 @@ html[data-chrome="phone"] {
     grid-template-columns: none !important;
     grid-template-rows: none !important;
     position: relative;
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    padding-bottom: calc(48px + env(safe-area-inset-bottom));
   }
   .imagelist {
     display: flex !important;
     align-items: center;
     background: var(--pdn-bg-2);
     border-bottom: 1px solid var(--pdn-border);
-    min-height: 38px;
-    height: 38px;
+    min-height: 32px;
+    height: 32px;
     padding: 0 8px;
     overflow: visible;
     box-sizing: border-box;
@@ -1448,10 +1448,11 @@ html[data-chrome="phone"] {
     display: flex !important;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 8px;
+    padding: 4px 8px;
+    padding-top: calc(4px + env(safe-area-inset-top));
     background: var(--pdn-bg-2);
     border-bottom: 1px solid var(--pdn-border);
-    min-height: 44px;
+    min-height: calc(40px + env(safe-area-inset-top));
     flex: 0 0 auto;
     min-width: 0;
     box-sizing: border-box;
@@ -1501,7 +1502,7 @@ html[data-chrome="phone"] {
     position: fixed;
     left: 8px;
     right: 8px;
-    bottom: calc(56px + env(safe-area-inset-bottom));
+    bottom: calc(48px + 4px + env(safe-area-inset-bottom));
     z-index: 1400;
     justify-content: center;
     pointer-events: none;
@@ -2248,8 +2249,9 @@ html[data-chrome="phone"][data-chrome-short] {
     padding-bottom: calc(44px + env(safe-area-inset-bottom));
   }
   .mobile-top-bar {
-    min-height: 36px;
+    min-height: calc(36px + env(safe-area-inset-top));
     padding: 2px 8px;
+    padding-top: calc(2px + env(safe-area-inset-top));
   }
   .mobile-top-title {
     max-width: 220px;
@@ -2263,7 +2265,7 @@ html[data-chrome="phone"][data-chrome-short] {
     display: none;
   }
   .mobile-command-deck {
-    height: 44px;
+    height: calc(44px + env(safe-area-inset-bottom));
   }
   .deck-tab-btn {
     font-size: 9.5px;
@@ -2271,7 +2273,7 @@ html[data-chrome="phone"][data-chrome-short] {
     padding: 2px 0;
   }
   .mobile-context-pill {
-    bottom: 48px;
+    bottom: calc(44px + 4px + env(safe-area-inset-bottom));
   }
   .context-pill-inner {
     padding: 5px 12px;
