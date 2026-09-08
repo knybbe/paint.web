@@ -583,7 +583,7 @@ function ShortcutsDialog({ app }: { app: AppState }) {
           <b>Ctrl+Z/Y</b> undo/redo · <b>Ctrl+C/X/V</b> copy/cut/paste · <b>Delete</b> erase · <b>Backspace</b> fill
         </li>
         <li>
-          <b>Ctrl+N/O</b> new/open · <b>Ctrl+Shift+S</b> download export · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
+          <b>Ctrl+N/O</b> new/open · <b>Ctrl+Shift+S</b> download · <b>F5–F8</b> tool windows · <b>F4</b> layer properties
         </li>
         <li>
           <b>Space+drag</b> pan · <b>Wheel / pinch</b> zoom · <b>Ctrl+0</b> actual size · <b>Ctrl+B</b> fit to view
@@ -598,7 +598,7 @@ function DownloadDialog({ app, format }: { app: AppState; format: SaveFormat }) 
   const [fmt, setFmt] = useState<SaveFormat>(format);
   return (
     <AppDialogShell
-      title="Download Export"
+      title="Download"
       primary="Download"
       onClose={() => app.closeDialog()}
       onPrimary={() => {

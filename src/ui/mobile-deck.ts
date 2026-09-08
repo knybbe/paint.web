@@ -351,13 +351,20 @@ function renderLayersSheet(app: AppState): HTMLElement {
   const actionRow = document.createElement("div");
   actionRow.className = "mobile-layers-actions";
 
+  const layerCount = app.document.layers.length;
+  const activeIndex = app.document.activeIndex;
+  const canDelete = layerCount > 1;
+  const canMerge = activeIndex > 0;
+  const canMoveUp = activeIndex >= 0 && activeIndex < layerCount - 1;
+  const canMoveDown = activeIndex > 0;
+
   actionRow.append(
-    touchBtnWithIcon(UI_ICONS.addLayer, "Add", () => app.addLayer(), false, "mobile-layer-add"),
-    touchBtnWithIcon(UI_ICONS.duplicateLayer, "Duplicate", () => app.duplicateLayer(), false, "mobile-layer-dup"),
-    touchBtnWithIcon(UI_ICONS.arrowUp, "Up", () => app.moveActiveLayer(1), app.document.activeIndex >= app.document.layers.length - 1, "mobile-layer-up"),
-    touchBtnWithIcon(UI_ICONS.arrowDown, "Down", () => app.moveActiveLayer(-1), app.document.activeIndex <= 0, "mobile-layer-down"),
-    touchBtnWithIcon(UI_ICONS.merge, "Merge", () => app.mergeDown(), app.document.activeIndex <= 0, "mobile-layer-merge"),
-    touchBtnWithIcon(UI_ICONS.deleteLayer, "Delete", () => app.deleteLayer(), app.document.layers.length <= 1, "mobile-layer-del"),
+    touchBtnWithIcon(UI_ICONS.addLayer, "Add", () => app.addLayer(), false, "mobile-layer-add", "Add layer"),
+    touchBtnWithIcon(UI_ICONS.duplicateLayer, "Duplicate", () => app.duplicateLayer(), false, "mobile-layer-dup", "Duplicate layer"),
+    touchBtnWithIcon(UI_ICONS.arrowUp, "Up", () => app.moveActiveLayer(1), !canMoveUp, "mobile-layer-up", "Move layer up"),
+    touchBtnWithIcon(UI_ICONS.arrowDown, "Down", () => app.moveActiveLayer(-1), !canMoveDown, "mobile-layer-down", "Move layer down"),
+    touchBtnWithIcon(UI_ICONS.merge, "Merge", () => app.mergeDown(), !canMerge, "mobile-layer-merge", "Merge layer down"),
+    touchBtnWithIcon(UI_ICONS.deleteLayer, "Delete", () => app.deleteLayer(), !canDelete, "mobile-layer-del", "Delete layer"),
   );
   container.append(actionRow);
 
@@ -373,6 +380,8 @@ function renderLayersSheet(app: AppState): HTMLElement {
     const eyeBtn = document.createElement("button");
     eyeBtn.type = "button";
     eyeBtn.className = "mobile-layer-eye";
+    eyeBtn.title = layer.visible ? "Hide layer" : "Show layer";
+    eyeBtn.setAttribute("aria-label", eyeBtn.title);
     eyeBtn.append(svgEl(layer.visible ? UI_ICONS.eye : UI_ICONS.eyeOff));
     eyeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -386,10 +395,12 @@ function renderLayersSheet(app: AppState): HTMLElement {
     const thumb = document.createElement("img");
     thumb.className = "mobile-layer-thumb";
     thumb.src = layer.thumbnailDataUrl(48);
+    thumb.alt = "";
 
     const name = document.createElement("span");
     name.className = "mobile-layer-name";
-    name.textContent = layer.name;
+    name.title = layer.name;
+    name.textContent = layer.name + (layer.locked ? " 🔒" : "");
 
     item.append(eyeBtn, thumb, name);
     item.addEventListener("click", () => {
@@ -419,6 +430,8 @@ function renderLayersSheet(app: AppState): HTMLElement {
   blendLabel.textContent = "Blend Mode: ";
   const blendSel = document.createElement("select");
   blendSel.className = "touch-select";
+  blendSel.title = "Blend Mode";
+  blendSel.setAttribute("aria-label", "Blend Mode");
   for (const m of BLEND_MODES) {
     const opt = document.createElement("option");
     opt.value = m;
@@ -494,7 +507,7 @@ function renderMoreSheet(app: AppState, onDone: () => void): HTMLElement {
         { label: "Search commands", icon: UI_ICONS.search, action: () => openCommandPalette() },
         { label: "New", icon: UI_ICONS.new, action: () => app.openDialog({ type: "new" }) },
         { label: "Open", icon: UI_ICONS.open, action: () => void app.openFiles() },
-        { label: "Download Export...", icon: UI_ICONS.download, action: () => void app.download() },
+        { label: "Download...", icon: UI_ICONS.download, action: () => void app.download() },
         { label: "Folder Sync...", icon: UI_ICONS.sync, action: () => app.openDialog({ type: "sync" }) },
         { label: "Explorer...", icon: UI_ICONS.open, action: () => app.openDialog({ type: "explorer" }) },
         { label: "Print", icon: UI_ICONS.save, action: () => app.print() },
@@ -581,11 +594,13 @@ function touchButton(label: string, on: () => void, primary = false): HTMLButton
   return b;
 }
 
-function touchBtnWithIcon(svg: string, label: string, on: () => void, disabled = false, testid?: string): HTMLButtonElement {
+function touchBtnWithIcon(svg: string, label: string, on: () => void, disabled = false, testid?: string, ariaLabel?: string): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "touch-icon-btn";
   b.disabled = disabled;
+  b.title = ariaLabel ?? label;
+  b.setAttribute("aria-label", ariaLabel ?? label);
   if (testid) b.dataset.testid = testid;
   b.append(svgEl(svg));
   const span = document.createElement("span");
@@ -613,6 +628,8 @@ function touchSlider(label: string, val: number, min: number, max: number, unit:
   range.min = String(min);
   range.max = String(max);
   range.value = String(val);
+  range.title = label;
+  range.setAttribute("aria-label", label);
 
   range.addEventListener("input", () => {
     num.textContent = `${range.value}${unit}`;

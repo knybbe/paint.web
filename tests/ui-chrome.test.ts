@@ -235,7 +235,8 @@ describe("Desktop editor shell & mobile deck", () => {
     expect(app.dialog?.type).toBe("download");
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();
-    expect(dialog?.textContent).toContain("Download Export");
+    expect(dialog?.textContent).toContain("Download");
+    expect(dialog?.textContent).not.toContain("Download Export");
   });
 
   it("desktop horizontal tab close button performs soft-close keeping cache", async () => {

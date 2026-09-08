@@ -153,7 +153,7 @@ body {
   cursor: pointer;
 }
 .tb-btn:hover, .tool-btn:hover, .win-btn:hover, .icon-btn:hover { background: var(--pdn-hover); border-color: var(--pdn-border-2); }
-.tb-btn:disabled { opacity: 0.35; pointer-events: none; }
+.tb-btn:disabled, .tool-btn:disabled, .win-btn:disabled, .icon-btn:disabled { opacity: 0.35; pointer-events: none; }
 .tb-btn.active, .tool-btn.active {
   background: var(--pdn-accent-soft);
   border-color: var(--pdn-accent);
@@ -369,7 +369,14 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 }
 .palette-cell:hover { outline: 1px solid var(--pdn-accent-2); }
 
-.layers-list { display: flex; flex-direction: column-reverse; gap: 2px; }
+.layers-list {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .layer-row {
   display: grid;
   grid-template-columns: 18px 36px 1fr;
@@ -378,6 +385,7 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   padding: 3px;
   border: 1px solid transparent;
   cursor: pointer;
+  min-width: 0;
 }
 .layer-row.active { border-color: var(--pdn-accent); background: var(--pdn-accent-soft); }
 .layer-row .thumb {
@@ -385,15 +393,35 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   height: 28px;
   border: 1px solid var(--pdn-border);
   background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 8px 8px;
+  flex-shrink: 0;
 }
 .layer-row .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.layer-actions { display: flex; flex-wrap: wrap; gap: 1px; margin-top: 6px; }
+.layer-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.layer-actions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
 .layer-actions .icon-btn {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 26px;
+  min-height: 26px;
+  border-radius: var(--pdn-radius-sm);
 }
 .opacity-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 .opacity-row input[type="range"] { flex: 1; }
+.layer-blend-select {
+  width: 100%;
+  margin-top: 6px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: var(--pdn-radius-sm);
+  border: 1px solid var(--pdn-border);
+  background: var(--pdn-input);
+  color: var(--pdn-text);
+  font: inherit;
+  font-size: 12px;
+}
 
 .history-list { display: flex; flex-direction: column; gap: 1px; max-height: 180px; overflow: auto; }
 .hist-row {
@@ -1121,6 +1149,10 @@ input[type="range"] { accent-color: var(--pdn-accent); }
   color: var(--pdn-text);
   cursor: pointer;
 }
+[data-chrome="tablet"] .dock.right {
+  width: 260px;
+  min-width: 260px;
+}
 [data-chrome="tablet"] .dock.right .pdn-win .title {
   display: none;
 }
@@ -1134,6 +1166,38 @@ input[type="range"] { accent-color: var(--pdn-accent); }
 }
 [data-chrome="tablet"] .dock.right > .dock-pane.tablet-active {
   display: flex !important;
+}
+[data-chrome="tablet"] .layer-actions .icon-btn {
+  min-width: 34px;
+  min-height: 34px;
+}
+[data-chrome="tablet"] .layer-actions {
+  gap: 4px;
+  margin-top: 8px;
+}
+[data-chrome="tablet"] .layer-row {
+  min-height: 38px;
+  padding: 4px 6px;
+}
+[data-chrome="tablet"] .layer-row .thumb {
+  width: 40px;
+  height: 30px;
+}
+[data-chrome="tablet"] .layer-row .icon-btn {
+  min-width: 32px;
+  min-height: 32px;
+}
+[data-chrome="tablet"] .opacity-row {
+  margin-top: 8px;
+  font-size: 13px;
+}
+[data-chrome="tablet"] .opacity-row input[type="range"] {
+  height: 28px;
+}
+[data-chrome="tablet"] .layer-blend-select {
+  height: 34px;
+  font-size: 13px;
+  margin-top: 8px;
 }
 [data-chrome="tablet"] .statusbar {
   display: none;
@@ -1558,6 +1622,9 @@ html[data-chrome="phone"] {
     transform: none;
     padding-bottom: 0;
   }
+  .mobile-sheet-container.sheet-right .sheet-drag-handle {
+    display: none;
+  }
 
   .sheet-drag-handle {
     width: 40px;
@@ -1588,6 +1655,17 @@ html[data-chrome="phone"] {
     color: var(--pdn-text-dim);
     padding: 4px 8px;
     cursor: pointer;
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--pdn-radius-sm);
+  }
+  .sheet-close-btn:hover,
+  .sheet-close-btn:active {
+    color: var(--pdn-text);
+    background: var(--pdn-hover);
   }
   .sheet-body {
     padding: 12px 16px;
@@ -1796,13 +1874,20 @@ html[data-chrome="phone"] {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
+    overflow-x: hidden;
   }
   .mobile-layers-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 6px;
   }
+  @media (min-width: 480px) {
+    .mobile-layers-actions {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
   .touch-icon-btn {
-    flex: 1;
     min-height: 40px;
     display: flex;
     align-items: center;
@@ -1815,17 +1900,20 @@ html[data-chrome="phone"] {
     font-size: 11.5px;
     font-weight: 500;
     cursor: pointer;
+    padding: 4px 6px;
   }
   .touch-icon-btn:disabled {
     opacity: 0.35;
     cursor: default;
+    pointer-events: none;
   }
   .mobile-layers-list {
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     gap: 6px;
-    max-height: 220px;
+    max-height: 240px;
     overflow-y: auto;
+    overflow-x: hidden;
   }
   .mobile-layer-item {
     display: flex;
@@ -1836,6 +1924,7 @@ html[data-chrome="phone"] {
     border: 1px solid var(--pdn-border);
     background: var(--pdn-bg-2);
     cursor: pointer;
+    min-width: 0;
   }
   .mobile-layer-item.active {
     border-color: var(--pdn-accent);
@@ -1851,6 +1940,7 @@ html[data-chrome="phone"] {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
   .mobile-layer-thumb {
     width: 44px;
@@ -1858,12 +1948,17 @@ html[data-chrome="phone"] {
     object-fit: cover;
     border-radius: 4px;
     border: 1px solid var(--pdn-border);
-    background: #fff;
+    background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 8px 8px;
+    flex-shrink: 0;
   }
   .mobile-layer-name {
     flex: 1;
     font-size: 13px;
     font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
   .mobile-layer-props-group {
     display: flex;

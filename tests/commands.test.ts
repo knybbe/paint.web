@@ -107,13 +107,13 @@ describe("command registry", () => {
     expect(app.dialog?.type).toBe("new");
   });
 
-  it("replaces Save and Save As with Download Export command", async () => {
+  it("replaces Save and Save As with Download command", async () => {
     expect(getCommand("file.save")).toBeUndefined();
     expect(getCommand("file.saveAs")).toBeUndefined();
 
     const dl = getCommand("file.download");
     expect(dl).toBeTruthy();
-    expect(dl?.label).toBe("Download Export...");
+    expect(dl?.label).toBe("Download...");
 
     document.body.innerHTML = '<div id="app"></div>';
     const app = new AppState();
@@ -127,6 +127,7 @@ describe("command registry", () => {
     expect(app.dialog?.type).toBe("download");
     const dialog = document.querySelector('[data-testid="dialog"]');
     expect(dialog).toBeTruthy();
-    expect(dialog?.textContent).toContain("Download Export");
+    expect(dialog?.textContent).toContain("Download");
+    expect(dialog?.textContent).not.toContain("Download Export");
   });
 });

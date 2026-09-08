@@ -74,6 +74,7 @@ function PhoneChrome({ app }: { app: AppState }) {
             type="button"
             className="mobile-action-btn"
             title="Undo"
+            aria-label="Undo"
             disabled={!app.history.canUndo}
             data-testid="mobile-top-undo"
             onClick={() => app.undo()}
@@ -84,23 +85,45 @@ function PhoneChrome({ app }: { app: AppState }) {
             type="button"
             className="mobile-action-btn"
             title="Redo"
+            aria-label="Redo"
             disabled={!app.history.canRedo}
             data-testid="mobile-top-redo"
             onClick={() => app.redo()}
           >
             <SvgIcon svg={UI_ICONS.redo} />
           </button>
-          <button type="button" className="mobile-action-btn" title="Fit" data-testid="mobile-top-fit" onClick={() => app.fitToView()}>
+          <button
+            type="button"
+            className="mobile-action-btn"
+            title="Fit to View"
+            aria-label="Fit to View"
+            data-testid="mobile-top-fit"
+            onClick={() => app.fitToView()}
+          >
             <SvgIcon svg={UI_ICONS.fit} />
           </button>
           <ThemeToggle app={app} className="mobile-action-btn" />
-          <button type="button" className="mobile-action-btn" title="Download" data-testid="mobile-top-download" onClick={() => void app.download()}>
+          <button
+            type="button"
+            className="mobile-action-btn"
+            title="Download"
+            aria-label="Download"
+            data-testid="mobile-top-download"
+            onClick={() => void app.download()}
+          >
             <SvgIcon svg={UI_ICONS.download} />
           </button>
         </div>
       </header>
       <div className="mobile-context-pill" data-testid="mobile-context-pill">
-        <button type="button" className="context-pill-inner" data-testid="context-pill-btn" onClick={() => toggle("toolOpts")}>
+        <button
+          type="button"
+          className="context-pill-inner"
+          title="Tool Options"
+          aria-label="Tool Options"
+          data-testid="context-pill-btn"
+          onClick={() => toggle("toolOpts")}
+        >
           <SvgIcon svg={TOOL_SVG[app.currentTool]} />
           <span className="pill-label">{contextChipLabel(app)}</span>
         </button>
@@ -112,6 +135,9 @@ function PhoneChrome({ app }: { app: AppState }) {
             type="button"
             className={`deck-tab-btn${sheet === item.id ? " active" : ""}`}
             data-testid={item.testid}
+            title={item.label}
+            aria-label={item.label}
+            aria-expanded={sheet === item.id}
             onClick={() => toggle(item.id)}
           >
             <SvgIcon svg={deckIcon(item.id)} />
@@ -126,11 +152,19 @@ function PhoneChrome({ app }: { app: AppState }) {
           className={`mobile-sheet-container open${side === "right" ? " sheet-right" : ""}`}
           overlayClassName="mobile-sheet-backdrop open"
           overlayTestId="mobile-sheet-backdrop"
+          aria-describedby={undefined}
         >
-          <div className="sheet-drag-handle" onPointerDown={onHandleDown} onPointerUp={onHandleUp} />
+          <div className="sheet-drag-handle" role="presentation" aria-hidden="true" onPointerDown={onHandleDown} onPointerUp={onHandleUp} />
           <div className="sheet-header">
             <SheetTitle className="sheet-title">{mobileSheetTitle(sheet, app)}</SheetTitle>
-            <button type="button" className="sheet-close-btn" onClick={close}>
+            <button
+              type="button"
+              className="sheet-close-btn"
+              title="Close"
+              aria-label="Close"
+              data-testid="mobile-sheet-close"
+              onClick={close}
+            >
               ✕
             </button>
           </div>
